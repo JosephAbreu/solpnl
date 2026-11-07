@@ -47,12 +47,32 @@ foreach (var (start, count) in ranges)
         try
         {
             var registers = await client.ReadRegistersAsync(options.SlaveId, options.Function, chunkStart, chunkCount);
-            Console.WriteLine("  addr     hex     uint16    int16");
+            PrintHeader();
             for (var i = 0; i < registers.Length; i++)
+                PrintRegister(chunkStart + i, registers[i]);
+        }
+        catch (ModbusException ex) when (chunkCount > 1 && options.Scan)
+        {
+            // SRNE-family inverters reject a block read if any address in it is undefined.
+            // Fall back to one register at a time to map which addresses actually exist.
+            Console.WriteLine($"  Block read failed ({ex.Message}); scanning registers individually...");
+            PrintHeader();
+            var valid = 0;
+            for (var i = 0; i < chunkCount; i++)
             {
-                var value = registers[i];
-                Console.WriteLine($"  0x{chunkStart + i:X4}   {value:X4}  {value,7}  {(short)value,7}");
+                var address = (ushort)(chunkStart + i);
+                try
+                {
+                    var single = await client.ReadRegistersAsync(options.SlaveId, options.Function, address, 1);
+                    PrintRegister(address, single[0]);
+                    valid++;
+                }
+                catch (ModbusException single)
+                {
+                    Console.WriteLine($"  0x{address:X4}   ----  (exception 0x{single.ExceptionCode:X2})");
+                }
             }
+            if (valid == 0) failures++;
         }
         catch (Exception ex)
         {
@@ -65,6 +85,11 @@ foreach (var (start, count) in ranges)
 
 return failures == 0 ? 0 : 3;
 
+static void PrintHeader() => Console.WriteLine("  addr     hex     uint16    int16");
+
+static void PrintRegister(int address, ushort value) =>
+    Console.WriteLine($"  0x{address:X4}   {value:X4}  {value,7}  {(short)value,7}");
+
 static ProbeOptions? ParseArgs(string[] args)
 {
     string? host = null;
@@ -72,6 +97,7 @@ static ProbeOptions? ParseArgs(string[] args)
     int port = 8899, timeout = 10;
     byte slave = 1, function = ModbusRtu.ReadHoldingRegisters;
     var verbose = false;
+    var scan = true;
     var ranges = new List<(int Start, int Count)>();
 
     try
@@ -88,6 +114,7 @@ static ProbeOptions? ParseArgs(string[] args)
                 case "--function": function = (byte)ParseNumber(Next()); break;
                 case "--timeout": timeout = (int)ParseNumber(Next()); break;
                 case "--verbose" or "-v": verbose = true; break;
+                case "--no-scan": scan = false; break;
                 case "--range":
                     var parts = Next().Split(':');
                     if (parts.Length != 2) throw new FormatException("--range must be START:COUNT, e.g. 0x0100:32");
@@ -106,7 +133,7 @@ static ProbeOptions? ParseArgs(string[] args)
 
     return host is null || serial is null
         ? null
-        : new ProbeOptions(host, serial.Value, port, slave, function, timeout, verbose, ranges);
+        : new ProbeOptions(host, serial.Value, port, slave, function, timeout, verbose, scan, ranges);
 }
 
 static long ParseNumber(string text) =>
@@ -125,8 +152,9 @@ static void PrintUsage() => Console.WriteLine("""
       --range <start:cnt>  Register range to read, repeatable (e.g. 0x0100:32)
       --timeout <sec>      Per-request timeout (default 10)
       --verbose, -v        Print raw V5 frames
+      --no-scan            Do not retry failed block reads one register at a time
     """);
 
 internal sealed record ProbeOptions(
-    string Host, uint Serial, int Port, byte SlaveId, byte Function, int TimeoutSeconds, bool Verbose,
+    string Host, uint Serial, int Port, byte SlaveId, byte Function, int TimeoutSeconds, bool Verbose, bool Scan,
     List<(int Start, int Count)> Ranges);
