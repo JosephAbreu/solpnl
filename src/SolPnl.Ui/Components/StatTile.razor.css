@@ -1,0 +1,26 @@
+.stat-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 16px;
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: var(--borderRadiusMedium);
+    background: var(--colorNeutralBackground1);
+}
+
+.label {
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+.value {
+    font-size: var(--fontSizeBase500);
+    line-height: var(--lineHeightBase500);
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+.detail {
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground2);
+}

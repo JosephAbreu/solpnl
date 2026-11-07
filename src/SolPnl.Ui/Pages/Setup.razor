@@ -1,0 +1,216 @@
+@page "/setup"
+@layout SetupLayout
+@inject SolPnlApi Api
+@inject NavigationManager Nav
+
+<PageTitle>Set up · SolPnl</PageTitle>
+
+<div class="setup">
+    <h1>Set up SolPnl</h1>
+    <p class="intro">Choose where SolPnl stores your readings. You only need to do this once.</p>
+
+    @if (_restarting)
+    {
+        <section class="panel restarting" role="status">
+            <FluentSpinner />
+            <div>
+                <strong>Storage is set up. SolPnl is restarting…</strong>
+                <div class="muted">You'll be taken to the dashboard in a moment.</div>
+            </div>
+        </section>
+    }
+    else
+    {
+        <form class="panel form" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+            <section>
+                <h2>1. Setup code</h2>
+                <FluentTextInput @bind-Value="_code" Label="Setup code" Required="true" Placeholder="XXXX-XXXX"
+                                 AutoComplete="off" Width="200px" />
+                <p class="hint">SolPnl writes this code to its log when it starts without storage
+                    (for a service on Linux: <code>journalctl -u solpnl</code>).</p>
+            </section>
+
+            <section>
+                <h2>2. Storage</h2>
+                <div class="options" role="radiogroup" aria-label="Storage">
+                    @foreach (var option in Options)
+                    {
+                        <label class="option @(_driver == option.Driver ? "selected" : null)">
+                            <input type="radio" name="driver" value="@option.Driver" checked="@(_driver == option.Driver)"
+                                   @onchange="() => SelectDriver(option.Driver)" />
+                            <span>
+                                <span class="option-title">@option.Title</span>
+                                <span class="option-detail">@option.Detail</span>
+                            </span>
+                        </label>
+                    }
+                </div>
+            </section>
+
+            <section>
+                <h2>3. Connection</h2>
+                @if (_useConnectionString)
+                {
+                    <FluentTextArea @bind-Value="_connectionString" Label="Connection string" Required="true" Rows="3"
+                                    Placeholder="@ConnectionStringExample" Width="100%" />
+                }
+                else if (_driver == "sqlite")
+                {
+                    <FluentTextInput @bind-Value="_sqlitePath" Label="Database file" Required="true" Width="100%" />
+                    <p class="hint">Created if it doesn't exist. Keep it on this machine's own disk.</p>
+                }
+                else
+                {
+                    <div class="fields">
+                        <FluentTextInput @bind-Value="_server" Label="Server" Required="true" Placeholder="192.168.1.20" />
+                        <FluentTextInput @bind-Value="_port" Label="Port" Placeholder="@(_driver == "mysql" ? "3306" : "1433")"
+                                         InputMode="TextInputMode.Numeric" />
+                        <FluentTextInput @bind-Value="_database" Label="Database" Required="true" />
+                        <FluentTextInput @bind-Value="_user" Label="User" Required="true" AutoComplete="off" />
+                        <FluentTextInput @bind-Value="_password" Label="Password" TextInputType="TextInputType.Password" AutoComplete="new-password" />
+                    </div>
+                    <p class="hint">The database must already exist and the user needs permission to create tables in it.</p>
+                    @if (_driver == "mssql")
+                    {
+                        <FluentCheckbox @bind-Value="_trustServerCertificate" Label="Trust the server's certificate (typical for a server on your own network)" />
+                    }
+                }
+                <FluentCheckbox @bind-Value="_useConnectionString" Label="Enter a connection string instead (advanced)" />
+            </section>
+
+            @if (_result is { } result)
+            {
+                <FluentMessageBar Intent="@(result.Ok ? MessageBarIntent.Success : MessageBarIntent.Error)"
+                                  Title="@(result.Ok ? "Connection succeeded" : "That didn't work")">
+                    @(result.Ok ? result.ServerVersion is { } v ? $"Connected to {v}." : result.Message : result.Message)
+                </FluentMessageBar>
+            }
+
+            <div class="actions">
+                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="TestAsync" Disabled="_busy"
+                              IconStart="@(new Icons.Regular.Size20.PlugConnected())">Test connection</FluentButton>
+                <FluentButton Appearance="ButtonAppearance.Primary" Type="ButtonType.Submit" Disabled="_busy" Loading="_busy">
+                    Save and start
+                </FluentButton>
+            </div>
+        </form>
+    }
+</div>
+
+@code {
+    private sealed record StorageOption(string Driver, string Title, string Detail);
+
+    private static readonly StorageOption[] Options =
+    [
+        new("sqlite", "SQLite", "Recommended for a single Raspberry Pi. A file on this machine; nothing else to install."),
+        new("mysql", "MySQL or MariaDB", "A database server on this machine or your network."),
+        new("mssql", "Microsoft SQL Server", "A SQL Server on another machine (it doesn't run on a Raspberry Pi)."),
+    ];
+
+    private string? _code;
+    private string _driver = "sqlite";
+    private string? _sqlitePath;
+    private string? _server, _port, _database = "solpnl", _user, _password, _connectionString;
+    private bool _trustServerCertificate = true;
+    private bool _useConnectionString;
+    private bool _busy, _restarting;
+    private SetupResult? _result;
+
+    private string ConnectionStringExample => _driver switch
+    {
+        "sqlite" => "Data Source=/var/lib/solpnl/solpnl.db",
+        "mysql" => "Server=192.168.1.20;Port=3306;Database=solpnl;User=solpnl;Password=…",
+        _ => "Server=192.168.1.20;Database=solpnl;User Id=solpnl;Password=…;TrustServerCertificate=true",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (!(await Api.GetSetupStatusAsync()).SetupRequired)
+            {
+                Nav.NavigateTo("", replace: true);
+                return;
+            }
+            _sqlitePath = (await Api.GetSetupDefaultsAsync())?.SqlitePath;
+        }
+        catch (HttpRequestException ex)
+        {
+            _result = new SetupResult(false, $"Can't reach SolPnl: {ex.Message}");
+        }
+    }
+
+    private void SelectDriver(string driver)
+    {
+        _driver = driver;
+        _result = null;
+    }
+
+    private StorageSetupRequest BuildRequest() => new()
+    {
+        Code = _code ?? "",
+        Driver = _driver,
+        SqlitePath = _sqlitePath,
+        Server = _server,
+        Port = int.TryParse(_port, out var port) ? port : null,
+        Database = _database,
+        User = _user,
+        Password = _password,
+        TrustServerCertificate = _trustServerCertificate,
+        ConnectionString = _useConnectionString ? _connectionString : null,
+    };
+
+    private async Task TestAsync() => await RunAsync(() => Api.TestStorageAsync(BuildRequest()));
+
+    private async Task SaveAsync()
+    {
+        await RunAsync(() => Api.SaveStorageAsync(BuildRequest()));
+        if (_result is { Ok: true })
+        {
+            _restarting = true;
+            StateHasChanged();
+            await WaitForRestartAsync();
+        }
+    }
+
+    private async Task RunAsync(Func<Task<SetupResult>> action)
+    {
+        _busy = true;
+        _result = null;
+        try
+        {
+            _result = await action();
+        }
+        catch (HttpRequestException ex)
+        {
+            _result = new SetupResult(false, $"Can't reach SolPnl: {ex.Message}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Polls until SolPnl is back in normal mode, then loads the dashboard fresh.</summary>
+    private async Task WaitForRestartAsync()
+    {
+        for (var attempt = 0; attempt < 120; attempt++)
+        {
+            await Task.Delay(1000);
+            try
+            {
+                if (!(await Api.GetSetupStatusAsync()).SetupRequired)
+                {
+                    Nav.NavigateTo("", forceLoad: true);
+                    return;
+                }
+            }
+            catch (HttpRequestException)
+            {
+                // Expected while the server restarts.
+            }
+        }
+        _restarting = false;
+        _result = new SetupResult(false, "SolPnl didn't come back after saving. Check its log, then reload this page.");
+    }
+}

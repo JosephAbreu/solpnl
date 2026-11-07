@@ -1,0 +1,33 @@
+-- 1: devices, metrics, raw readings, latest values
+create table device (
+    id int identity(1, 1) not null constraint pk_device primary key,
+    device_key nvarchar(200) not null constraint ux_device_key unique,
+    vendor nvarchar(200) not null,
+    model nvarchar(200) not null,
+    serial_number nvarchar(200) null,
+    firmware_version nvarchar(100) null,
+    created_at_ms bigint not null
+);
+
+create table metric (
+    id int identity(1, 1) not null constraint pk_metric primary key,
+    name nvarchar(200) not null constraint ux_metric_name unique,
+    unit nvarchar(20) not null
+);
+
+create table reading (
+    device_id int not null constraint fk_reading_device references device (id),
+    metric_id int not null constraint fk_reading_metric references metric (id),
+    ts_ms bigint not null,
+    value float not null,
+    constraint pk_reading primary key (device_id, metric_id, ts_ms)
+);
+create index ix_reading_ts on reading (ts_ms);
+
+create table reading_latest (
+    device_id int not null constraint fk_reading_latest_device references device (id),
+    metric_id int not null constraint fk_reading_latest_metric references metric (id),
+    ts_ms bigint not null,
+    value float not null,
+    constraint pk_reading_latest primary key (device_id, metric_id)
+);

@@ -1,0 +1,191 @@
+@page "/"
+@implements IDisposable
+@inject SolPnlApi Api
+@inject NavigationManager Nav
+
+<PageTitle>Dashboard · SolPnl</PageTitle>
+
+<div class="page">
+    <PageHeader Title="Dashboard" Subtitle="System overview" Icon="@(new Icons.Regular.Size24.Board())">
+        <Commands>
+            <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowClockwise())" OnClick="RefreshAsync">Refresh</FluentButton>
+        </Commands>
+    </PageHeader>
+
+    @if (_error is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Can't reach the SolPnl service">@_error</FluentMessageBar>
+    }
+    else if (_loaded && _device is null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Info" Title="No devices are reporting yet">
+            Configure a device plugin in appsettings.Local.json, then restart SolPnl.
+        </FluentMessageBar>
+    }
+
+    @if (_device is not null)
+    {
+        <section class="now" aria-label="Current values">
+            <div class="hero panel">
+                <div class="hero-label">Solar power now</div>
+                <div class="hero-value">@Value(Metrics.PvPower)</div>
+                <div class="hero-detail">
+                    @StringsDetail()
+                    <span class="sep">·</span>
+                    <StatusBadge Online="@DeviceStatus.IsOnline(_lastReading, DateTimeOffset.UtcNow)" />
+                    @if (_lastReading is { } t)
+                    {
+                        <span class="muted">updated @MetricFormat.Ago(t, DateTimeOffset.UtcNow)</span>
+                    }
+                </div>
+            </div>
+
+            <div class="tile-grid">
+                <StatTile Label="Load" Value="@Value(Metrics.LoadPower)"
+                          Detail="@PhaseDetail(Metrics.LoadPower)" />
+                <StatTile Label="Grid voltage" Value="@PhasePair(Metrics.GridVoltage)"
+                          Detail="@(Has(Metrics.GridFrequency) ? Value(Metrics.GridFrequency) : null)" />
+                <StatTile Label="Inverter temperature" Value="@Value(Metrics.InverterTemperature)" />
+                @if (Has(Metrics.BatterySoc))
+                {
+                    <StatTile Label="Battery charge" Value="@Value(Metrics.BatterySoc)"
+                              Detail="@(Has(Metrics.BatteryVoltage) ? Value(Metrics.BatteryVoltage) : null)" />
+                }
+            </div>
+        </section>
+
+        <TimeRangeBar Value="_range" ValueChanged="SetRange" />
+
+        <div class="card-grid">
+            <MetricChartCard Title="Solar and load" DeviceId="@_device.DeviceId" Range="_range" RefreshKey="_chartRefresh"
+                             Series="@PowerSeries" />
+            <MetricChartCard Title="Solar by PV string" DeviceId="@_device.DeviceId" Range="_range" RefreshKey="_chartRefresh"
+                             Series="@StringSeries" />
+        </div>
+
+        <p class="device-link">
+            Showing <a href="@($"devices/{Uri.EscapeDataString(_device.DeviceId)}")">@_device.DeviceId</a>
+            (@_device.Vendor @_device.Model).
+        </p>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "range")] public string? RangeKey { get; set; }
+
+    private static readonly IReadOnlyList<SeriesSpec> PowerSeries =
+    [
+        new(Metrics.PvPower, "Solar", SeriesColors.Slot2),
+        new(Metrics.LoadPower, "Load", SeriesColors.Slot1),
+    ];
+
+    private static readonly IReadOnlyList<SeriesSpec> StringSeries =
+    [
+        new(Metrics.ForString(Metrics.PvPower, 1), "String 1", SeriesColors.Slot1),
+        new(Metrics.ForString(Metrics.PvPower, 2), "String 2", SeriesColors.Slot2),
+    ];
+
+    private DeviceInfo? _device;
+    private Dictionary<string, Reading> _latest = [];
+    private DateTimeOffset? _lastReading;
+    private TimeRange _range = TimeRange.Last24Hours;
+    private int _chartRefresh;
+    private bool _loaded;
+    private string? _error;
+    private readonly CancellationTokenSource _cts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLatestAsync();
+        _ = PollAsync(_cts.Token);
+    }
+
+    protected override void OnParametersSet() => _range = TimeRange.FromKey(RangeKey);
+
+    private void SetRange(TimeRange range) => Nav.NavigateTo(Nav.GetUriWithQueryParameter("range", range.Key));
+
+    private async Task RefreshAsync()
+    {
+        await LoadLatestAsync();
+        _chartRefresh++;
+    }
+
+    /// <summary>Current values every 10 s (matches the poll interval); charts every minute.</summary>
+    private async Task PollAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        var ticks = 0;
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await LoadLatestAsync();
+                if (++ticks % 6 == 0) _chartRefresh++;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task LoadLatestAsync()
+    {
+        try
+        {
+            if (_device is null)
+                _device = (await Api.GetDevicesAsync(_cts.Token)).FirstOrDefault();
+
+            if (_device is not null)
+            {
+                var latest = await Api.GetLatestAsync(_device.DeviceId, _cts.Token);
+                _latest = latest.ToDictionary(r => r.Metric);
+                _lastReading = latest.Count > 0 ? latest.Max(r => r.Timestamp) : null;
+            }
+            _error = null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            _error = ex.Message;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        _loaded = true;
+    }
+
+    private bool Has(string metric) => _latest.ContainsKey(metric);
+
+    private string Value(string metric) =>
+        _latest.TryGetValue(metric, out var r) ? MetricFormat.Format(r.Value, r.Unit) : "–";
+
+    private string? PhaseDetail(string metric)
+    {
+        var l1 = Metrics.ForPhase(metric, 1);
+        var l2 = Metrics.ForPhase(metric, 2);
+        return Has(l1) && Has(l2) ? $"L1 {Value(l1)} · L2 {Value(l2)}" : null;
+    }
+
+    private string PhasePair(string metric)
+    {
+        var l1 = Metrics.ForPhase(metric, 1);
+        var l2 = Metrics.ForPhase(metric, 2);
+        if (Has(l1) && Has(l2)) return $"{Value(l1)} / {Value(l2)}";
+        return Has(l1) ? Value(l1) : Value(metric);
+    }
+
+    private string StringsDetail()
+    {
+        var parts = Enumerable.Range(1, 4)
+            .Select(i => (Number: i, Metric: Metrics.ForString(Metrics.PvPower, i)))
+            .Where(s => Has(s.Metric))
+            .Select(s => $"String {s.Number} {Value(s.Metric)}");
+        return string.Join(" · ", parts);
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

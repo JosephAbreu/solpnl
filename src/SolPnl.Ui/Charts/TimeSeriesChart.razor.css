@@ -1,0 +1,154 @@
+.chart {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-family: var(--fontFamilyBase);
+    transition: opacity 120ms ease-out;
+}
+
+/* Refetch keeps the frame: dim the previous render instead of flashing a skeleton. */
+.chart.is-loading {
+    opacity: 0.55;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--fontSizeBase200);
+    color: var(--viz-ink-2);
+}
+
+    .legend li {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+.line-key {
+    display: inline-block;
+    width: 14px;
+    height: 2px;
+    border-radius: 1px;
+    flex: none;
+}
+
+.plot {
+    position: relative;
+    width: 100%;
+}
+
+svg {
+    display: block;
+    overflow: visible;
+}
+
+.grid {
+    stroke: var(--viz-grid);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+}
+
+.axis {
+    stroke: var(--viz-axis);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+}
+
+.tick {
+    fill: var(--viz-muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.end-label {
+    fill: var(--viz-ink);
+    font-size: 12px;
+    font-weight: var(--fontWeightSemibold);
+}
+
+/* 2px surface ring keeps dots legible where they cross lines. */
+.ringed {
+    stroke: var(--viz-surface);
+    stroke-width: 2;
+}
+
+.crosshair {
+    stroke: var(--viz-ink-2);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+    pointer-events: none;
+}
+
+.hit {
+    position: absolute;
+    cursor: crosshair;
+    border-radius: 2px;
+    touch-action: pan-y;
+}
+
+    .hit:focus-visible {
+        outline: 2px solid var(--colorStrokeFocus2);
+        outline-offset: 2px;
+    }
+
+.empty {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--viz-muted);
+    font-size: var(--fontSizeBase300);
+}
+
+.tooltip {
+    position: absolute;
+    z-index: 2;
+    pointer-events: none;
+    min-width: 150px;
+    padding: 8px 10px;
+    border-radius: var(--borderRadiusMedium);
+    background: var(--colorNeutralBackground1);
+    border: 1px solid var(--colorNeutralStroke2);
+    box-shadow: var(--shadow8);
+    font-size: var(--fontSizeBase200);
+    color: var(--viz-ink);
+    white-space: nowrap;
+}
+
+    .tooltip.right {
+        transform: translateX(12px);
+    }
+
+    .tooltip.left {
+        transform: translateX(calc(-100% - 12px));
+    }
+
+.tooltip-time {
+    color: var(--viz-ink-2);
+    margin-bottom: 4px;
+}
+
+.tooltip-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 20px;
+}
+
+    .tooltip-row strong {
+        font-weight: var(--fontWeightSemibold);
+        font-size: var(--fontSizeBase300);
+    }
+
+.tooltip-name,
+.tooltip-range {
+    color: var(--viz-ink-2);
+}
+
+.tooltip-range::before {
+    content: "· ";
+}
