@@ -61,6 +61,9 @@ internal sealed class SimulatedInverter(string deviceId, int peakWatts, bool fai
         var pv2 = Math.Round(peakWatts * 0.4 * daylight * jitter);
         var l1 = Math.Round(250 + Random.Shared.NextDouble() * 400);
         var l2 = Math.Round(300 + Random.Shared.NextDouble() * 700);
+        // Grid makes up whatever solar doesn't cover on each leg (no export), plus a little inverter overhead.
+        var g1 = Math.Max(0, Math.Round(l1 - (pv1 + pv2) / 2 + 10));
+        var g2 = Math.Max(0, Math.Round(l2 - (pv1 + pv2) / 2 + 10));
 
         Reading R(string metric, double value, string unit) => new(deviceId, metric, value, unit, now);
         IReadOnlyList<Reading> readings =
@@ -71,6 +74,9 @@ internal sealed class SimulatedInverter(string deviceId, int peakWatts, bool fai
             R(Metrics.ForPhase(Metrics.LoadPower, 1), l1, "W"),
             R(Metrics.ForPhase(Metrics.LoadPower, 2), l2, "W"),
             R(Metrics.LoadPower, l1 + l2, "W"),
+            R(Metrics.ForPhase(Metrics.GridPower, 1), g1, "W"),
+            R(Metrics.ForPhase(Metrics.GridPower, 2), g2, "W"),
+            R(Metrics.GridPower, g1 + g2, "W"),
             R(Metrics.ForPhase(Metrics.GridVoltage, 1), Math.Round(121 + Random.Shared.NextDouble() * 2, 1), "V"),
             R(Metrics.ForPhase(Metrics.GridVoltage, 2), Math.Round(121 + Random.Shared.NextDouble() * 2, 1), "V"),
             R(Metrics.GridFrequency, Math.Round(59.98 + Random.Shared.NextDouble() * 0.04, 2), "Hz"),

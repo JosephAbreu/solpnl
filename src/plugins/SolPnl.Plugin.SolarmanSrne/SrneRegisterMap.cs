@@ -26,6 +26,7 @@ public static class SrneRegisterMap
     public const double BatteryPresentMinVoltage = 10.0;
 
     public const string StateMetric = "vendor.srne.state";
+    public const string DcBusVoltageMetric = "vendor.srne.dc_bus_voltage";
 
     private sealed record Register(ushort Address, string Metric, double Scale, string Unit, bool Signed = false);
 
@@ -47,7 +48,9 @@ public static class SrneRegisterMap
 
         new(0x0210, StateMetric, 1, ""),            // operating state; meaning of values not yet mapped
 
+        new(0x0212, DcBusVoltageMetric, 0.1, "V"),         // internal DC bus; 0x0228 + 0x0229 are its two halves
         new(0x0213, ForPhase(GridVoltage, 1), 0.1, "V"),
+        new(0x0214, ForPhase(GridCurrent, 1), 0.1, "A"),
         new(0x0215, GridFrequency, 0.01, "Hz"),
         new(0x0216, ForPhase(InverterVoltage, 1), 0.1, "V"),
         new(0x0217, ForPhase(InverterCurrent, 1), 0.1, "A"),
@@ -55,6 +58,7 @@ public static class SrneRegisterMap
         new(0x0219, ForPhase(LoadCurrent, 1), 0.1, "A"),
         new(0x021B, ForPhase(LoadPower, 1), 1, "W"),
         new(0x021C, ForPhase(LoadApparentPower, 1), 1, "VA"),
+        new(0x021F, ForPhase(LoadPercent, 1), 1, "%"),
 
         new(0x0220, ForString(InverterTemperature, 1), 0.1, "°C", Signed: true),
         new(0x0221, ForString(InverterTemperature, 2), 0.1, "°C", Signed: true),
@@ -66,6 +70,16 @@ public static class SrneRegisterMap
         new(0x0230, ForPhase(LoadCurrent, 2), 0.1, "A"),
         new(0x0232, ForPhase(LoadPower, 2), 1, "W"),
         new(0x0234, ForPhase(LoadApparentPower, 2), 1, "VA"),
+        new(0x0236, ForPhase(LoadPercent, 2), 1, "%"),
+
+        // Grid side. Verified 2026-11-07: at night (grid only) L2 current/VA matched the L2 load exactly, and day and
+        // night energy balances hold (solar + grid = load + inverter losses). L1 power is signed; small negative values
+        // near zero load are measurement noise (export is unverified).
+        new(0x0238, ForPhase(GridCurrent, 2), 0.1, "A"),
+        new(0x023A, ForPhase(GridPower, 1), 1, "W", Signed: true),
+        new(0x023B, ForPhase(GridPower, 2), 1, "W", Signed: true),
+        new(0x023D, ForPhase(GridApparentPower, 1), 1, "VA"),
+        new(0x023E, ForPhase(GridApparentPower, 2), 1, "VA"),
     ];
 
     public static IReadOnlyList<Reading> Decode(
@@ -104,6 +118,12 @@ public static class SrneRegisterMap
 
         if (values.TryGetValue(ForPhase(LoadApparentPower, 1), out var s1) && values.TryGetValue(ForPhase(LoadApparentPower, 2), out var s2))
             Add(LoadApparentPower, s1 + s2, "VA");
+
+        if (values.TryGetValue(ForPhase(GridPower, 1), out var g1) && values.TryGetValue(ForPhase(GridPower, 2), out var g2))
+            Add(GridPower, g1 + g2, "W");
+
+        if (values.TryGetValue(ForPhase(GridApparentPower, 1), out var gs1) && values.TryGetValue(ForPhase(GridApparentPower, 2), out var gs2))
+            Add(GridApparentPower, gs1 + gs2, "VA");
 
         var temperatures = Enumerable.Range(1, 3)
             .Select(i => values.TryGetValue(ForString(InverterTemperature, i), out var t) ? t : (double?)null)
