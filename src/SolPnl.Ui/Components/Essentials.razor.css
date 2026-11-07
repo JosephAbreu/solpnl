@@ -1,0 +1,31 @@
+h2 {
+    margin: 0 0 8px;
+    font-size: var(--fontSizeBase300);
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    gap: 6px 32px;
+    margin: 0;
+}
+
+.item {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 8px;
+    font-size: var(--fontSizeBase300);
+}
+
+dt {
+    color: var(--colorNeutralForeground3);
+    font-weight: var(--fontWeightRegular);
+}
+
+dd {
+    margin: 0;
+    color: var(--colorNeutralForeground1);
+    overflow-wrap: anywhere;
+}

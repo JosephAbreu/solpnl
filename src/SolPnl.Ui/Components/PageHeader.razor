@@ -1,0 +1,51 @@
+@* Portal-style page header: breadcrumb, icon + title + subtitle, then a command bar. *@
+
+<header class="page-header">
+    @if (Breadcrumbs.Count > 0)
+    {
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <ol>
+                @foreach (var (label, href) in Breadcrumbs)
+                {
+                    <li>
+                        @if (href is null)
+                        {
+                            <span aria-current="page">@label</span>
+                        }
+                        else
+                        {
+                            <a href="@href">@label</a>
+                        }
+                    </li>
+                }
+            </ol>
+        </nav>
+    }
+
+    <div class="title-row">
+        @if (Icon is not null)
+        {
+            <span class="title-icon"><FluentIcon Value="@Icon" Color="Color.Primary" /></span>
+        }
+        <div>
+            <h1>@Title</h1>
+            @if (!string.IsNullOrEmpty(Subtitle))
+            {
+                <div class="subtitle">@Subtitle</div>
+            }
+        </div>
+    </div>
+
+    @if (Commands is not null)
+    {
+        <div class="command-bar" role="toolbar" aria-label="Commands">@Commands</div>
+    }
+</header>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public Icon? Icon { get; set; }
+    [Parameter] public IReadOnlyList<(string Label, string? Href)> Breadcrumbs { get; set; } = [];
+    [Parameter] public RenderFragment? Commands { get; set; }
+}

@@ -1,0 +1,21 @@
+.tab-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-top: 16px;
+}
+
+.grid-panel {
+    padding: 0;
+    overflow-x: auto;
+}
+
+.num {
+    font-variant-numeric: tabular-nums;
+}
+
+.hint {
+    margin: 0;
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}

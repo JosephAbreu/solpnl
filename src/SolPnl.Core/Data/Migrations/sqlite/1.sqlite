@@ -1,0 +1,35 @@
+-- 1: devices, metrics, raw readings, latest values
+create table if not exists device (
+    id integer primary key autoincrement,
+    device_key text not null,
+    vendor text not null,
+    model text not null,
+    serial_number text null,
+    firmware_version text null,
+    created_at_ms integer not null
+);
+create unique index if not exists ux_device_key on device (device_key);
+
+create table if not exists metric (
+    id integer primary key autoincrement,
+    name text not null,
+    unit text not null
+);
+create unique index if not exists ux_metric_name on metric (name);
+
+create table if not exists reading (
+    device_id integer not null references device (id),
+    metric_id integer not null references metric (id),
+    ts_ms integer not null,
+    value real not null,
+    primary key (device_id, metric_id, ts_ms)
+) without rowid;
+create index if not exists ix_reading_ts on reading (ts_ms);
+
+create table if not exists reading_latest (
+    device_id integer not null references device (id),
+    metric_id integer not null references metric (id),
+    ts_ms integer not null,
+    value real not null,
+    primary key (device_id, metric_id)
+);

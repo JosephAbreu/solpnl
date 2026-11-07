@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SolPnl.Api/SolPnl.Api.csproj" />
+    <Project Path="src/SolPnl.Contracts/SolPnl.Contracts.csproj" />
+    <Project Path="src/SolPnl.Core/SolPnl.Core.csproj" />
+    <Project Path="src/SolPnl.Ui/SolPnl.Ui.csproj" />
+    <Project Path="src/SolPnl.Web/SolPnl.Web.csproj" />
+  </Folder>
+  <Folder Name="/src/plugins/">
+    <Project Path="src/plugins/SolPnl.Plugin.Notify.Smtp/SolPnl.Plugin.Notify.Smtp.csproj" />
+    <Project Path="src/plugins/SolPnl.Plugin.SolarmanSrne/SolPnl.Plugin.SolarmanSrne.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SolPnl.Core.Tests/SolPnl.Core.Tests.csproj" />
+    <Project Path="tests/SolPnl.Plugin.SolarmanSrne.Tests/SolPnl.Plugin.SolarmanSrne.Tests.csproj" />
+    <Project Path="tests/SolPnl.Ui.Tests/SolPnl.Ui.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/SolPnl.Probe/SolPnl.Probe.csproj" />
+  </Folder>
+</Solution>

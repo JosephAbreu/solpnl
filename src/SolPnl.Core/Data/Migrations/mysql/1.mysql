@@ -1,0 +1,41 @@
+-- 1: devices, metrics, raw readings, latest values (MySQL and MariaDB)
+create table if not exists device (
+    id int not null auto_increment,
+    device_key varchar(200) not null,
+    vendor varchar(200) not null,
+    model varchar(200) not null,
+    serial_number varchar(200) null,
+    firmware_version varchar(100) null,
+    created_at_ms bigint not null,
+    primary key (id),
+    unique key ux_device_key (device_key)
+) engine = InnoDB;
+
+create table if not exists metric (
+    id int not null auto_increment,
+    name varchar(200) not null,
+    unit varchar(20) not null,
+    primary key (id),
+    unique key ux_metric_name (name)
+) engine = InnoDB;
+
+create table if not exists reading (
+    device_id int not null,
+    metric_id int not null,
+    ts_ms bigint not null,
+    value double not null,
+    primary key (device_id, metric_id, ts_ms),
+    key ix_reading_ts (ts_ms),
+    constraint fk_reading_device foreign key (device_id) references device (id),
+    constraint fk_reading_metric foreign key (metric_id) references metric (id)
+) engine = InnoDB;
+
+create table if not exists reading_latest (
+    device_id int not null,
+    metric_id int not null,
+    ts_ms bigint not null,
+    value double not null,
+    primary key (device_id, metric_id),
+    constraint fk_reading_latest_device foreign key (device_id) references device (id),
+    constraint fk_reading_latest_metric foreign key (metric_id) references metric (id)
+) engine = InnoDB;

@@ -1,0 +1,106 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="chart viz-root @(Loading ? "is-loading" : null)">
+    @if (Series.Count > 1)
+    {
+        <ul class="legend" aria-label="Legend">
+            @foreach (var s in Series)
+            {
+                <li><span class="line-key" style="background:@s.Color"></span>@s.Name</li>
+            }
+        </ul>
+    }
+
+    <div class="plot" @ref="_container" style="height:@(Height)px">
+        @if (_width > 0 && _layout is { } l)
+        {
+            <svg width="@_width" height="@Height" role="img" aria-label="@AriaLabel">
+                @* Gridlines and y-axis labels *@
+                @foreach (var tick in l.YTicks)
+                {
+                    var y = l.Y(tick);
+                    <line class="grid" x1="@F(l.Left)" x2="@F(l.Left + l.PlotWidth)" y1="@F(y)" y2="@F(y)" />
+                    <g><text class="tick" x="@F(l.Left - 8)" y="@F(y)" text-anchor="end" dominant-baseline="middle">@MetricFormat.Tick(tick, l.YStep)</text></g>
+                }
+                <line class="axis" x1="@F(l.Left)" x2="@F(l.Left + l.PlotWidth)" y1="@F(l.Y(l.YLow))" y2="@F(l.Y(l.YLow))" />
+
+                @* x-axis labels *@
+                @foreach (var tick in l.XTicks)
+                {
+                    <g><text class="tick" x="@F(l.X(tick.Value))" y="@F(Height - 6)" text-anchor="middle">@tick.Label</text></g>
+                }
+
+                @* Min/max band: single series of summaries only, as a 10% wash *@
+                @if (Series.Count == 1 && l.Band is { } band)
+                {
+                    <path d="@band" fill="@Series[0].Color" fill-opacity="0.1" stroke="none" />
+                }
+
+                @foreach (var s in l.Lines)
+                {
+                    @foreach (var path in s.Paths)
+                    {
+                        <path d="@path" fill="none" stroke="@s.Color" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+                    }
+                    @foreach (var (x, y) in s.LonePoints)
+                    {
+                        <circle cx="@F(x)" cy="@F(y)" r="4" fill="@s.Color" class="ringed" />
+                    }
+                    @if (s.End is { } end)
+                    {
+                        <circle cx="@F(end.X)" cy="@F(end.Y)" r="4" fill="@s.Color" class="ringed" />
+                        @if (l.ShowEndLabels)
+                        {
+                            <g><text class="end-label" x="@F(end.X + 8)" y="@F(end.Y)" dominant-baseline="middle">@MetricFormat.Format(end.Value, Unit)</text></g>
+                        }
+                    }
+                }
+
+                @* Crosshair *@
+                @if (_hover is { } h)
+                {
+                    <line class="crosshair" x1="@F(h.X)" x2="@F(h.X)" y1="@F(l.Top)" y2="@F(l.Top + l.PlotHeight)" />
+                    @foreach (var row in h.Rows)
+                    {
+                        <circle cx="@F(row.X)" cy="@F(row.Y)" r="4" fill="@row.Color" class="ringed" />
+                    }
+                }
+            </svg>
+
+            @if (l.IsEmpty)
+            {
+                <div class="empty" style="left:@F(l.Left)px; top:@F(l.Top)px; width:@F(l.PlotWidth)px; height:@F(l.PlotHeight)px">
+                    No data for this time range yet
+                </div>
+            }
+            else
+            {
+                <div class="hit" tabindex="0" aria-label="@($"{AriaLabel}. Use the left and right arrow keys to read values.")"
+                     style="left:@F(l.Left)px; top:@F(l.Top)px; width:@F(l.PlotWidth)px; height:@F(l.PlotHeight)px"
+                     @onpointermove="OnPointerMove" @onpointerleave="ClearHover" @onblur="ClearHover"
+                     @onkeydown="OnKeyDown"></div>
+            }
+
+            @if (_hover is { } tip)
+            {
+                <div class="tooltip @(tip.X > l.Left + l.PlotWidth / 2 ? "left" : "right")" role="status"
+                     style="left:@F(tip.X)px; top:@F(l.Top)px">
+                    <div class="tooltip-time">@tip.TimeLabel</div>
+                    @foreach (var row in tip.Rows)
+                    {
+                        <div class="tooltip-row">
+                            <span class="line-key" style="background:@row.Color"></span>
+                            <strong>@MetricFormat.Format(row.Point.Value, Unit)</strong>
+                            <span class="tooltip-name">@row.Name</span>
+                            @if (row.Point.Min is { } min && row.Point.Max is { } max)
+                            {
+                                <span class="tooltip-range">@MetricFormat.Format(min, Unit) – @MetricFormat.Format(max, Unit)</span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>

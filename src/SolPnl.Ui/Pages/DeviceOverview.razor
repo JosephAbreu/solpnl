@@ -1,0 +1,197 @@
+@page "/devices/{DeviceId}"
+@implements IDisposable
+@inject SolPnlApi Api
+@inject NavigationManager Nav
+
+<PageTitle>@DeviceId · SolPnl</PageTitle>
+
+<div class="page">
+    <PageHeader Title="@DeviceId" Subtitle="@(_device is null ? "Device" : $"{_device.Vendor} · {_device.Model}")"
+                Icon="@(new Icons.Regular.Size24.Flash())"
+                Breadcrumbs="@([("Home", ""), ("Devices", "devices"), (DeviceId, null)])">
+        <Commands>
+            <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowClockwise())" OnClick="RefreshAsync">Refresh</FluentButton>
+        </Commands>
+    </PageHeader>
+
+    @if (_error is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Can't reach the SolPnl service">@_error</FluentMessageBar>
+    }
+    else if (_loaded && _device is null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Info" Title="Device not found">
+            No device with ID @DeviceId has reported to SolPnl. <a href="devices">Back to devices</a>
+        </FluentMessageBar>
+    }
+
+    @if (_device is not null)
+    {
+        <FluentTabs>
+            <FluentTab Header="Overview">
+                <div class="tab-body">
+                    <Essentials Items="@EssentialItems" />
+
+                    <div class="tile-grid">
+                        <StatTile Label="Solar power" Value="@Value(Metrics.PvPower)" />
+                        <StatTile Label="Load" Value="@Value(Metrics.LoadPower)" />
+                        <StatTile Label="Grid voltage" Value="@PhasePair(Metrics.GridVoltage)" />
+                        <StatTile Label="Inverter temperature" Value="@Value(Metrics.InverterTemperature)" />
+                    </div>
+
+                    <TimeRangeBar Value="_range" ValueChanged="SetRange" />
+
+                    <div class="card-grid">
+                        <MetricChartCard Title="Solar and load" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh"
+                                         Series="@([new(Metrics.PvPower, "Solar", SeriesColors.Slot2), new(Metrics.LoadPower, "Load", SeriesColors.Slot1)])" />
+                        <MetricChartCard Title="Solar by PV string" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh"
+                                         Series="@([new(Metrics.ForString(Metrics.PvPower, 1), "String 1", SeriesColors.Slot1), new(Metrics.ForString(Metrics.PvPower, 2), "String 2", SeriesColors.Slot2)])" />
+                        <MetricChartCard Title="Grid voltage" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh" ZeroBaseline="false"
+                                         Series="@([new(Metrics.ForPhase(Metrics.GridVoltage, 1), "L1", SeriesColors.Slot1), new(Metrics.ForPhase(Metrics.GridVoltage, 2), "L2", SeriesColors.Slot2)])" />
+                        <MetricChartCard Title="Inverter temperature" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh" ZeroBaseline="false"
+                                         Series="@([new(Metrics.InverterTemperature, "Inverter temperature", SeriesColors.Slot1)])" />
+                    </div>
+                </div>
+            </FluentTab>
+
+            <FluentTab Header="Metrics">
+                <div class="tab-body">
+                    <div class="panel grid-panel">
+                        <FluentDataGrid Items="@_latestRows.AsQueryable()" TGridItem="Reading" GridTemplateColumns="2fr 1.5fr 1fr 1fr 0.8fr">
+                            <TemplateColumn Title="Metric" Sortable="true" SortBy="@(GridSort<Reading>.ByAscending(r => MetricFormat.DisplayName(r.Metric)))">
+                                @MetricFormat.DisplayName(context.Metric)
+                            </TemplateColumn>
+                            <PropertyColumn Title="Name" Property="@(r => r.Metric)" Sortable="true" />
+                            <TemplateColumn Title="Value" Align="DataGridCellAlignment.End">
+                                <span class="num">@MetricFormat.Format(context.Value, context.Unit)</span>
+                            </TemplateColumn>
+                            <TemplateColumn Title="Updated">@MetricFormat.Ago(context.Timestamp, DateTimeOffset.UtcNow)</TemplateColumn>
+                            <TemplateColumn Title="">
+                                <FluentButton Appearance="ButtonAppearance.Subtle" Size="ButtonSize.Small" OnClick="() => _selectedMetric = context.Metric"
+                                              IconStart="@(new Icons.Regular.Size16.DataLine())"
+                                              aria-label="@($"Chart {MetricFormat.DisplayName(context.Metric)}")">Chart</FluentButton>
+                            </TemplateColumn>
+                        </FluentDataGrid>
+                    </div>
+
+                    @if (_selectedMetric is { } metric)
+                    {
+                        <TimeRangeBar Value="_range" ValueChanged="SetRange" />
+                        <MetricChartCard Title="@MetricFormat.DisplayName(metric)" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh"
+                                         ZeroBaseline="@(!metric.Contains("voltage") && !metric.Contains("frequency") && !metric.Contains("temperature"))"
+                                         Series="@([new(metric, MetricFormat.DisplayName(metric), SeriesColors.Slot1)])" />
+                    }
+                    else
+                    {
+                        <p class="hint">Select Chart on any metric to see its history.</p>
+                    }
+                </div>
+            </FluentTab>
+        </FluentTabs>
+    }
+</div>
+
+@code {
+    [Parameter] public string DeviceId { get; set; } = "";
+    [SupplyParameterFromQuery(Name = "range")] public string? RangeKey { get; set; }
+
+    private DeviceInfo? _device;
+    private Dictionary<string, Reading> _latest = [];
+    private List<Reading> _latestRows = [];
+    private DateTimeOffset? _lastReading;
+    private TimeRange _range = TimeRange.Last24Hours;
+    private string? _selectedMetric;
+    private int _chartRefresh;
+    private bool _loaded;
+    private string? _error;
+    private readonly CancellationTokenSource _cts = new();
+
+    private IReadOnlyList<(string, RenderFragment)> EssentialItems =>
+    [
+        ("Status", @<StatusBadge Online="@DeviceStatus.IsOnline(_lastReading, DateTimeOffset.UtcNow)" />),
+        ("Last reading", @<span>@(_lastReading is { } t ? $"{MetricFormat.Ago(t, DateTimeOffset.UtcNow)} ({t.ToLocalTime():G})" : "never")</span>),
+        ("Vendor", @<span>@_device?.Vendor</span>),
+        ("Model", @<span>@_device?.Model</span>),
+        ("Serial number", @<span>@(_device?.SerialNumber ?? "–")</span>),
+        ("Firmware", @<span>@(_device?.FirmwareVersion ?? "Not reported")</span>),
+        ("Device ID", @<span>@_device?.DeviceId</span>),
+        ("Metrics", @<span>@_latest.Count reported</span>),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _ = PollAsync(_cts.Token);
+    }
+
+    protected override void OnParametersSet() => _range = TimeRange.FromKey(RangeKey);
+
+    private void SetRange(TimeRange range) => Nav.NavigateTo(Nav.GetUriWithQueryParameter("range", range.Key));
+
+    private async Task RefreshAsync()
+    {
+        await LoadAsync();
+        _chartRefresh++;
+    }
+
+    private async Task PollAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        var ticks = 0;
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await LoadAsync();
+                if (++ticks % 6 == 0) _chartRefresh++;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _device ??= (await Api.GetDevicesAsync(_cts.Token)).FirstOrDefault(d => d.DeviceId == DeviceId);
+            if (_device is not null)
+            {
+                var latest = await Api.GetLatestAsync(DeviceId, _cts.Token);
+                _latest = latest.ToDictionary(r => r.Metric);
+                _latestRows = latest.OrderBy(r => r.Metric, StringComparer.Ordinal).ToList();
+                _lastReading = latest.Count > 0 ? latest.Max(r => r.Timestamp) : null;
+            }
+            _error = null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            _error = ex.Message;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        _loaded = true;
+    }
+
+    private bool Has(string metric) => _latest.ContainsKey(metric);
+
+    private string Value(string metric) =>
+        _latest.TryGetValue(metric, out var r) ? MetricFormat.Format(r.Value, r.Unit) : "–";
+
+    private string PhasePair(string metric)
+    {
+        var l1 = Metrics.ForPhase(metric, 1);
+        var l2 = Metrics.ForPhase(metric, 2);
+        if (Has(l1) && Has(l2)) return $"{Value(l1)} / {Value(l2)}";
+        return Has(l1) ? Value(l1) : Value(metric);
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

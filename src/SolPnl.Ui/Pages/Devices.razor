@@ -1,0 +1,118 @@
+@page "/devices"
+@implements IDisposable
+@inject SolPnlApi Api
+@inject NavigationManager Nav
+
+<PageTitle>Devices · SolPnl</PageTitle>
+
+<div class="page">
+    <PageHeader Title="Devices" Subtitle="Hardware reporting to SolPnl" Icon="@(new Icons.Regular.Size24.Flash())"
+                Breadcrumbs="@([("Home", ""), ("Devices", null)])">
+        <Commands>
+            <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowClockwise())" OnClick="LoadAsync">Refresh</FluentButton>
+        </Commands>
+    </PageHeader>
+
+    <div class="filter-row">
+        <FluentTextInput Value="@Query" ValueChanged="SetQuery" Placeholder="Filter by name, vendor, model or serial" aria-label="Filter devices"
+                         Immediate="true" ImmediateDelay="250" Width="360px" />
+        <span class="count">@Showing.Count of @_rows.Count</span>
+    </div>
+
+    @if (_error is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Can't reach the SolPnl service">@_error</FluentMessageBar>
+    }
+
+    <div class="panel grid-panel">
+        <FluentDataGrid Items="@Showing.AsQueryable()" TGridItem="Row" GridTemplateColumns="2fr 1fr 1.5fr 1fr 1fr 1fr">
+            <TemplateColumn Title="Name" Sortable="true" SortBy="@(GridSort<Row>.ByAscending(r => r.Device.DeviceId))">
+                <a href="@($"devices/{Uri.EscapeDataString(context.Device.DeviceId)}")">@context.Device.DeviceId</a>
+            </TemplateColumn>
+            <PropertyColumn Title="Vendor" Property="@(r => r.Device.Vendor)" Sortable="true" />
+            <PropertyColumn Title="Model" Property="@(r => r.Device.Model)" Sortable="true" />
+            <PropertyColumn Title="Serial number" Property="@(r => r.Device.SerialNumber)" Sortable="true" />
+            <TemplateColumn Title="Status">
+                <StatusBadge Online="@DeviceStatus.IsOnline(context.LastReading, DateTimeOffset.UtcNow)" />
+            </TemplateColumn>
+            <TemplateColumn Title="Last reading">
+                @(context.LastReading is { } t ? MetricFormat.Ago(t, DateTimeOffset.UtcNow) : "never")
+            </TemplateColumn>
+        </FluentDataGrid>
+
+        @if (_loaded && Showing.Count == 0)
+        {
+            <div class="none">@(_rows.Count == 0 ? "No devices are reporting yet." : "No devices match the filter.")</div>
+        }
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Query { get; set; }
+
+    private List<Row> _rows = [];
+    private bool _loaded;
+    private string? _error;
+    private readonly CancellationTokenSource _cts = new();
+
+    private List<Row> Showing => string.IsNullOrWhiteSpace(Query)
+        ? _rows
+        : _rows.Where(r => Matches(r.Device, Query.Trim())).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _ = PollAsync(_cts.Token);
+    }
+
+    private void SetQuery(string? value) =>
+        Nav.NavigateTo(Nav.GetUriWithQueryParameter("q", string.IsNullOrWhiteSpace(value) ? null : value), replace: true);
+
+    private async Task PollAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var devices = await Api.GetDevicesAsync(_cts.Token);
+            var latest = await Api.GetLatestAsync(null, _cts.Token);
+            var last = latest.GroupBy(r => r.DeviceId).ToDictionary(g => g.Key, g => g.Max(r => r.Timestamp));
+            _rows = devices.Select(d => new Row(d, last.TryGetValue(d.DeviceId, out var t) ? t : null)).ToList();
+            _error = null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            _error = ex.Message;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        _loaded = true;
+    }
+
+    private static bool Matches(DeviceInfo d, string q) =>
+        new[] { d.DeviceId, d.Vendor, d.Model, d.SerialNumber, d.FirmwareVersion }
+            .Any(v => v?.Contains(q, StringComparison.OrdinalIgnoreCase) == true);
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+
+    private sealed record Row(DeviceInfo Device, DateTimeOffset? LastReading);
+}

@@ -1,0 +1,16 @@
+# Normalize line endings: LF in the repository, native endings in working copies.
+* text=auto
+
+# Files that must keep LF everywhere (run on the Raspberry Pi / Linux)
+*.sh text eol=lf
+
+# Files that must keep CRLF everywhere
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
