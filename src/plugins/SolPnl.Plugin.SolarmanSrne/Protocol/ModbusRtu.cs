@@ -78,7 +78,11 @@ public sealed class ModbusException(byte exceptionCode)
         0x02 => "illegal data address",
         0x03 => "illegal data value",
         0x04 => "slave device failure",
+        0x05 => "acknowledge",
         0x06 => "slave device busy",
+        0x08 => "memory parity error",
+        0x0A => "gateway path unavailable",
+        0x0B => "gateway target device failed to respond",
         _ => "unknown",
     };
 }
