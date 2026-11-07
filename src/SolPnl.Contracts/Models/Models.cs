@@ -16,6 +16,9 @@ public sealed record Reading(
     string Unit,
     DateTimeOffset Timestamp);
 
+/// <summary>One point in a metric's history.</summary>
+public sealed record HistoryPoint(DateTimeOffset Timestamp, double Value);
+
 public enum AlertSeverity
 {
     Info,

@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\SolPnl.Core\SolPnl.Core.csproj" />
     <ProjectReference Include="..\SolPnl.Web\SolPnl.Web.csproj" />
+    <ProjectReference Include="..\plugins\SolPnl.Plugin.SolarmanSrne\SolPnl.Plugin.SolarmanSrne.csproj" />
   </ItemGroup>
 
 </Project>

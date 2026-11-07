@@ -24,9 +24,40 @@ and alerting on the server, and depends on outside services only when a plugin y
 ## Build & run
 ```sh
 dotnet build SolPnl.slnx
-dotnet test SolPnl.slnx
+dotnet test SolPnl.slnx --filter "Category!=Containers"   # fast tests (SQLite only)
+dotnet test SolPnl.slnx                                   # all tests; MySQL/MariaDB/SQL Server need Docker
 dotnet run --project src/SolPnl.Api
 ```
+
+## Configuration
+Machine-specific settings go in `src/SolPnl.Api/appsettings.Local.json` (git-ignored):
+```json
+{
+  "Plugins": {
+    "SolarmanSrne": { "Host": "192.168.1.50", "LoggerSerial": 2712345678 }
+  }
+}
+```
+
+### Storage
+| `Db:DriverName` | Database | Notes |
+|---|---|---|
+| `sqlite` (default) | SQLite | No setup; `Data Source=solpnl.db` |
+| `mysql` | MySQL or MariaDB | Via `MySql.EntityFrameworkCore` |
+| `mssql` | SQL Server | Runs on another machine (no Raspberry Pi build) |
+
+```json
+"Db": { "DriverName": "mysql", "ConnectionString": "Server=localhost;Database=solpnl;User=solpnl;Password=...;" }
+```
+The schema is created and updated at startup from numbered SQL scripts in
+`src/SolPnl.Core/Data/Migrations/<driver>/`. Every schema change needs a new script for **each** driver.
+
+## API
+| Endpoint | Description |
+|---|---|
+| `GET /api/v1/devices` | Known devices |
+| `GET /api/v1/readings/latest[?device=]` | Latest value of every metric |
+| `GET /api/v1/readings/history?device=&metric=[&from=&to=]` | Raw values (default: last 24 h) |
 
 ## Probing a Solarman WiFi logger
 You need the logger's IP address (from your router) and its serial number (sticker on the stick).

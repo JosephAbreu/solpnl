@@ -11,6 +11,7 @@
     <Project Path="src/plugins/SolPnl.Plugin.SolarmanSrne/SolPnl.Plugin.SolarmanSrne.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SolPnl.Core.Tests/SolPnl.Core.Tests.csproj" />
     <Project Path="tests/SolPnl.Plugin.SolarmanSrne.Tests/SolPnl.Plugin.SolarmanSrne.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">

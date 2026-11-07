@@ -1,8 +1,29 @@
+using SolPnl.Contracts.Plugins;
+using SolPnl.Core;
+using SolPnl.Core.Data;
+using SolPnl.Core.Storage;
+using SolPnl.Plugin.SolarmanSrne;
+
 var builder = WebApplication.CreateBuilder(args);
 
+// Machine-specific settings (device addresses, connection strings) live in an untracked file.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+
 builder.Services.AddOpenApi();
+builder.Services.AddSolPnlCore(builder.Configuration);
+
+// Device plugins. Registered directly for now; dynamic plugin loading comes later.
+var srne = builder.Configuration.GetSection("Plugins:SolarmanSrne");
+if (srne.Exists())
+{
+    var srneOptions = srne.Get<SolarmanSrneOptions>()
+        ?? throw new InvalidOperationException("Plugins:SolarmanSrne is invalid.");
+    builder.Services.AddSingleton<IDevicePlugin>(_ => new SolarmanSrnePlugin(srneOptions));
+}
 
 var app = builder.Build();
+
+await app.Services.GetRequiredService<MigrationService>().MigrateAsync();
 
 if (app.Environment.IsDevelopment())
 {
@@ -15,8 +36,27 @@ app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 
 var api = app.MapGroup("/api/v1");
+
 api.MapGet("/health", () => Results.Ok(new { status = "ok", time = DateTimeOffset.UtcNow }))
    .WithName("GetHealth");
+
+api.MapGet("/devices", (IReadingStore store, CancellationToken ct) => store.GetDevicesAsync(ct))
+   .WithName("GetDevices");
+
+api.MapGet("/readings/latest", (string? device, IReadingStore store, CancellationToken ct) =>
+       store.GetLatestAsync(device, ct))
+   .WithName("GetLatestReadings");
+
+api.MapGet("/readings/history", async (string device, string metric, DateTimeOffset? from, DateTimeOffset? to,
+       IReadingStore store, CancellationToken ct) =>
+   {
+       var end = to ?? DateTimeOffset.UtcNow;
+       var start = from ?? end.AddHours(-24);
+       if (start > end)
+           return Results.BadRequest(new { error = "'from' must be before 'to'." });
+       return Results.Ok(await store.GetHistoryAsync(device, metric, start, end, ct));
+   })
+   .WithName("GetReadingHistory");
 
 app.MapFallbackToFile("index.html");
 

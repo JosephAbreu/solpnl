@@ -480,3 +480,9 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# SolPnl: machine-specific settings and local databases
+appsettings.Local.json
+*.db
+*.db-shm
+*.db-wal
