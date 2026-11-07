@@ -1,0 +1,25 @@
+.setup-shell {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--colorNeutralBackground2);
+}
+
+.setup-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 16px;
+    background: #1d2733;
+    color: #ffffff;
+    font-size: var(--fontSizeBase400);
+    font-weight: var(--fontWeightSemibold);
+}
+
+.setup-main {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px;
+}

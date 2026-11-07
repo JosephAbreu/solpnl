@@ -1,0 +1,121 @@
+.setup {
+    width: 100%;
+    max-width: 680px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+h1 {
+    margin: 0;
+    font-size: var(--fontSizeBase600);
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+h2 {
+    margin: 0 0 8px;
+    font-size: var(--fontSizeBase400);
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+.intro,
+.hint,
+.muted {
+    margin: 0;
+    color: var(--colorNeutralForeground3);
+    font-size: var(--fontSizeBase300);
+}
+
+.hint {
+    margin-top: 6px;
+    font-size: var(--fontSizeBase200);
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding: 24px;
+}
+
+    .form section {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+.options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--colorNeutralStroke1);
+    border-radius: var(--borderRadiusMedium);
+    cursor: pointer;
+}
+
+    .option:hover {
+        background: var(--colorNeutralBackground1Hover);
+    }
+
+    .option.selected {
+        border-color: var(--colorBrandStroke1);
+        background: var(--colorBrandBackground2);
+    }
+
+    .option input {
+        margin-top: 3px;
+        accent-color: var(--colorBrandBackground);
+    }
+
+    .option > span {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+.option-title {
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+.option-detail {
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground2);
+}
+
+.fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: 12px 16px;
+}
+
+    .fields > * {
+        min-width: 0;
+    }
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.restarting {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 24px;
+}
+
+code {
+    font-family: var(--fontFamilyMonospace);
+}
