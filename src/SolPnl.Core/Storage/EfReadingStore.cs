@@ -79,6 +79,33 @@ public sealed class EfReadingStore(
         }
     }
 
+    public async Task<bool> DeleteDeviceAsync(string deviceId, CancellationToken cancellationToken = default)
+    {
+        await _writeLock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+            var id = await db.Devices.Where(d => d.DeviceKey == deviceId).Select(d => (int?)d.Id).SingleOrDefaultAsync(cancellationToken);
+            if (id is null) return false;
+
+            // Plain parameterised SQL (not ExecuteDeleteAsync, which the MySQL provider renders in a form MariaDB
+            // rejects), children first because of the foreign keys, in one transaction.
+            await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+            await db.Database.ExecuteSqlAsync($"delete from reading_rollup where device_id = {id.Value}", cancellationToken);
+            await db.Database.ExecuteSqlAsync($"delete from reading_latest where device_id = {id.Value}", cancellationToken);
+            await db.Database.ExecuteSqlAsync($"delete from reading where device_id = {id.Value}", cancellationToken);
+            await db.Database.ExecuteSqlAsync($"delete from device where id = {id.Value}", cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+
+            _deviceIds.TryRemove(deviceId, out _);
+            return true;
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
     public async Task<IReadOnlyList<DeviceInfo>> GetDevicesAsync(CancellationToken cancellationToken = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);

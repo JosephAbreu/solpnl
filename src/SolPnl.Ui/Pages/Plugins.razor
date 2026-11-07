@@ -1,0 +1,132 @@
+@page "/plugins"
+@inject SolPnlApi Api
+
+<PageTitle>Plugins · SolPnl</PageTitle>
+
+<div class="page">
+    <PageHeader Title="Plugins" Subtitle="Support for hardware and services" Icon="@(new Icons.Regular.Size24.PuzzlePiece())"
+                Breadcrumbs="@([("Home", ""), ("Plugins", null)])">
+        <Commands>
+            <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowClockwise())" OnClick="LoadAsync">Refresh</FluentButton>
+        </Commands>
+    </PageHeader>
+
+    @if (_error is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Something went wrong">@_error</FluentMessageBar>
+    }
+
+    @if (_plugins is null && _error is null)
+    {
+        <FluentSpinner />
+    }
+    else if (_plugins is not null)
+    {
+        <div class="plugin-list">
+            @foreach (var plugin in _plugins)
+            {
+                <section class="panel plugin" aria-label="@plugin.DisplayName">
+                    <div class="plugin-main">
+                        <div class="plugin-icon"><FluentIcon Value="@(new Icons.Regular.Size24.PuzzlePiece())" Color="Color.Custom" CustomColor="var(--colorBrandForeground1)" /></div>
+                        <div class="plugin-text">
+                            <h2>@plugin.DisplayName</h2>
+                            <p>@plugin.Description</p>
+                            <div class="meta">
+                                <span>@(plugin.Kind == PluginKinds.Device ? "Device plugin" : "Notification plugin")</span>
+                                <span>·</span>
+                                <span>@plugin.DeviceCount @(plugin.DeviceCount == 1 ? "device" : "devices")</span>
+                                <span>·</span>
+                                @if (plugin.Enabled)
+                                {
+                                    <span class="state"><FluentIcon Value="@(new Icons.Filled.Size16.CheckmarkCircle())" Color="Color.Custom" CustomColor="var(--status-good)" />Enabled</span>
+                                }
+                                else
+                                {
+                                    <span class="state muted"><FluentIcon Value="@(new Icons.Regular.Size16.PauseCircle())" Color="Color.Custom" CustomColor="currentColor" />Disabled</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="plugin-actions">
+                            @if (plugin.Enabled)
+                            {
+                                <FluentButton Appearance="ButtonAppearance.Outline" Disabled="_busy" OnClick="() => DisableAsync(plugin)">Disable</FluentButton>
+                            }
+                            else
+                            {
+                                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="_busy" OnClick="() => SetEnabledAsync(plugin, true)">Enable</FluentButton>
+                            }
+                        </div>
+                    </div>
+
+                    @if (_confirming == plugin.Id)
+                    {
+                        <div class="confirm" role="alertdialog" aria-label="Confirm disabling @plugin.DisplayName">
+                            <p>
+                                <strong>Disable @plugin.DisplayName?</strong>
+                                SolPnl will stop polling its @plugin.DeviceCount @(plugin.DeviceCount == 1 ? "device" : "devices") until you enable it again.
+                                Device settings and history are kept.
+                            </p>
+                            <div class="confirm-actions">
+                                <FluentButton Appearance="ButtonAppearance.Subtle" Disabled="_busy" OnClick="() => _confirming = null">Cancel</FluentButton>
+                                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="_busy" Loading="_busy" OnClick="() => SetEnabledAsync(plugin, false)">Disable</FluentButton>
+                            </div>
+                        </div>
+                    }
+                </section>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<PluginInfo>? _plugins;
+    private string? _confirming;
+    private string? _error;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _plugins = await Api.GetPluginsAsync();
+            _error = null;
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Can't reach SolPnl: {ex.Message}";
+        }
+    }
+
+    private Task DisableAsync(PluginInfo plugin)
+    {
+        // Ask first if it will stop devices; otherwise just do it.
+        if (plugin.DeviceCount > 0)
+        {
+            _confirming = plugin.Id;
+            return Task.CompletedTask;
+        }
+        return SetEnabledAsync(plugin, false);
+    }
+
+    private async Task SetEnabledAsync(PluginInfo plugin, bool enabled)
+    {
+        _busy = true;
+        try
+        {
+            var result = await Api.SetPluginEnabledAsync(plugin.Id, enabled);
+            _error = result.Error;
+            _confirming = null;
+            await LoadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Can't reach SolPnl: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

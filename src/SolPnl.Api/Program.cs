@@ -4,7 +4,9 @@ using SolPnl.Api;
 using SolPnl.Contracts.Plugins;
 using SolPnl.Core;
 using SolPnl.Core.Data;
+using SolPnl.Core.Devices;
 using SolPnl.Core.Setup;
+using SolPnl.Plugin.Simulator;
 using SolPnl.Plugin.SolarmanSrne;
 
 // SolPnl runs in one of two modes:
@@ -16,9 +18,13 @@ var restart = new RestartSignal();
 do
 {
     restart.Reset();
-    var app = BuildApp(args, restart);
+    // Disposing the host releases singletons such as device connections before the next one starts.
+    await using var app = BuildApp(args, restart);
     if (app.Services.GetService<MigrationService>() is { } migrations)
+    {
         await migrations.MigrateAsync();
+        await app.Services.GetRequiredService<DeviceRegistry>().InitializeAsync(app.Configuration);
+    }
     await app.RunAsync();
 }
 while (restart.Requested);
@@ -52,14 +58,10 @@ static WebApplication BuildApp(string[] args, RestartSignal restart)
     {
         builder.Services.AddSolPnlCore(builder.Configuration);
 
-        // Device plugins. Registered directly for now; dynamic plugin loading comes later.
-        var srne = builder.Configuration.GetSection("Plugins:SolarmanSrne");
-        if (srne.Exists())
-        {
-            var srneOptions = srne.Get<SolarmanSrneOptions>()
-                ?? throw new InvalidOperationException("Plugins:SolarmanSrne is invalid.");
-            builder.Services.AddSingleton<IDevicePlugin>(_ => new SolarmanSrnePlugin(srneOptions));
-        }
+        // Installed device plugin types. Devices themselves are added in the UI (stored in the database).
+        builder.Services.AddSingleton<IDevicePluginType, SolarmanSrnePluginType>();
+        if (builder.Environment.IsDevelopment())
+            builder.Services.AddSingleton<IDevicePluginType, SimulatedInverterPluginType>();
     }
 
     var app = builder.Build();
@@ -87,6 +89,7 @@ static WebApplication BuildApp(string[] args, RestartSignal restart)
     else
     {
         api.MapReadingEndpoints();
+        api.MapManagementEndpoints();
     }
 
     // Unknown API routes get a JSON error instead of the web app's index.html.

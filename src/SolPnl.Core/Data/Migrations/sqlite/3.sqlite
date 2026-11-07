@@ -1,0 +1,20 @@
+-- 3: configured devices, plugin enable/disable, app settings
+create table if not exists device_config (
+    id integer primary key autoincrement,
+    name text not null,
+    plugin_id text not null,
+    settings text not null,
+    device_key text not null,
+    created_at_ms integer not null
+);
+create unique index if not exists ux_device_config_key on device_config (device_key);
+
+create table if not exists plugin_state (
+    plugin_id text not null primary key,
+    enabled integer not null
+);
+
+create table if not exists app_setting (
+    setting_key text not null primary key,
+    value text null
+);

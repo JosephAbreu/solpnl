@@ -1,0 +1,178 @@
+@page "/devices/add"
+@inject SolPnlApi Api
+@inject NavigationManager Nav
+
+<PageTitle>Add device · SolPnl</PageTitle>
+
+<div class="page">
+    <PageHeader Title="Add device" Subtitle="Connect hardware for SolPnl to monitor" Icon="@(new Icons.Regular.Size24.Add())"
+                Breadcrumbs="@([("Home", ""), ("Devices", "devices"), ("Add device", null)])" />
+
+    @if (_loadError is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Can't reach the SolPnl service">@_loadError</FluentMessageBar>
+    }
+    else if (_plugins is null)
+    {
+        <FluentSpinner />
+    }
+    else if (DevicePlugins.Count == 0)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Info" Title="No device plugins are enabled">
+            Enable a device plugin on the <a href="plugins">Plugins</a> page first.
+        </FluentMessageBar>
+    }
+    else
+    {
+        <form class="panel form" @onsubmit="AddAsync" @onsubmit:preventDefault="true">
+            <section>
+                <h2>Device type</h2>
+                <div class="options" role="radiogroup" aria-label="Device type">
+                    @foreach (var plugin in DevicePlugins)
+                    {
+                        <label class="option @(_pluginId == plugin.Id ? "selected" : null)">
+                            <input type="radio" name="plugin" value="@plugin.Id" checked="@(_pluginId == plugin.Id)"
+                                   @onchange="() => SelectPlugin(plugin.Id)" />
+                            <span>
+                                <span class="option-title">@plugin.DisplayName</span>
+                                <span class="option-detail">@plugin.Description</span>
+                            </span>
+                        </label>
+                    }
+                </div>
+            </section>
+
+            @if (Selected is { } selected)
+            {
+                <section>
+                    <h2>Details</h2>
+                    <FluentTextInput @bind-Value="_name" Label="Name" Required="true" Placeholder="Inverter" Width="100%" MaxLength="100" />
+                    <p class="hint">How the device appears in SolPnl, e.g. "Garage inverter".</p>
+
+                    <div class="fields">
+                        @foreach (var field in selected.Settings)
+                        {
+                            <div class="field">
+                                <FluentTextInput Value="@Get(field.Key)" ValueChanged="@(v => Set(field.Key, v))" Label="@field.Label"
+                                                 Required="field.Required" Placeholder="@(field.Placeholder ?? field.Default)"
+                                                 TextInputType="@(field.Kind == SettingKind.Secret ? TextInputType.Password : TextInputType.Text)"
+                                                 InputMode="@(field.Kind == SettingKind.Number ? TextInputMode.Numeric : TextInputMode.Text)"
+                                                 AutoComplete="off" Width="100%" />
+                                @if (!string.IsNullOrEmpty(field.Help))
+                                {
+                                    <p class="hint">@field.Help</p>
+                                }
+                            </div>
+                        }
+                    </div>
+                </section>
+
+                @if (_test is { } test)
+                {
+                    <FluentMessageBar Intent="@(test.Ok ? MessageBarIntent.Success : MessageBarIntent.Error)"
+                                      Title="@(test.Ok ? "Device found" : "Couldn't reach the device")">@test.Message</FluentMessageBar>
+                }
+                @if (_error is not null)
+                {
+                    <FluentMessageBar Intent="MessageBarIntent.Error" Title="Couldn't add the device">@_error</FluentMessageBar>
+                }
+
+                <div class="actions">
+                    <FluentButton Appearance="ButtonAppearance.Subtle" OnClick="@(() => Nav.NavigateTo("devices"))" Disabled="_busy">Cancel</FluentButton>
+                    <FluentButton Appearance="ButtonAppearance.Outline" OnClick="TestAsync" Disabled="_busy"
+                                  IconStart="@(new Icons.Regular.Size20.PlugConnected())">Test connection</FluentButton>
+                    <FluentButton Appearance="ButtonAppearance.Primary" Type="ButtonType.Submit" Disabled="_busy" Loading="_busy">Add device</FluentButton>
+                </div>
+            }
+        </form>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<PluginInfo>? _plugins;
+    private string? _pluginId;
+    private string? _name;
+    private readonly Dictionary<string, string?> _settings = new();
+    private DeviceTestResult? _test;
+    private string? _error, _loadError;
+    private bool _busy;
+
+    private IReadOnlyList<PluginInfo> DevicePlugins =>
+        _plugins?.Where(p => p.Kind == PluginKinds.Device && p.Enabled).ToList() ?? [];
+
+    private PluginInfo? Selected => DevicePlugins.FirstOrDefault(p => p.Id == _pluginId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _plugins = await Api.GetPluginsAsync();
+            if (DevicePlugins.Count == 1) SelectPlugin(DevicePlugins[0].Id);
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadError = ex.Message;
+        }
+    }
+
+    private void SelectPlugin(string id)
+    {
+        _pluginId = id;
+        _settings.Clear();
+        _test = null;
+        _error = null;
+    }
+
+    private string? Get(string key) => _settings.GetValueOrDefault(key);
+
+    private void Set(string key, string? value)
+    {
+        _settings[key] = value;
+        _test = null;
+    }
+
+    private AddDeviceRequest Request() => new((_name ?? "").Trim(), _pluginId ?? "", new Dictionary<string, string?>(_settings));
+
+    private async Task TestAsync()
+    {
+        _busy = true;
+        _error = null;
+        _test = null;
+        try
+        {
+            _test = await Api.TestDeviceAsync(Request());
+        }
+        catch (HttpRequestException ex)
+        {
+            _test = new DeviceTestResult(false, $"Can't reach SolPnl: {ex.Message}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task AddAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await Api.AddDeviceAsync(Request());
+            if (result.Value is { } device)
+            {
+                Nav.NavigateTo($"devices/{Uri.EscapeDataString(device.DeviceId)}");
+                return;
+            }
+            _error = result.Error;
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Can't reach SolPnl: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

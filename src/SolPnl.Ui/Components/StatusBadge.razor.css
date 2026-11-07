@@ -4,3 +4,7 @@
     gap: 4px;
     color: var(--colorNeutralForeground1);
 }
+
+    .status.muted {
+        color: var(--colorNeutralForeground3);
+    }

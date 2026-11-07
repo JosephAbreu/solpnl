@@ -1,0 +1,19 @@
+-- 3: configured devices, plugin enable/disable, app settings
+create table device_config (
+    id int identity(1, 1) not null constraint pk_device_config primary key,
+    name nvarchar(100) not null,
+    plugin_id nvarchar(100) not null,
+    settings nvarchar(max) not null,
+    device_key nvarchar(200) not null constraint ux_device_config_key unique,
+    created_at_ms bigint not null
+);
+
+create table plugin_state (
+    plugin_id nvarchar(100) not null constraint pk_plugin_state primary key,
+    enabled int not null
+);
+
+create table app_setting (
+    setting_key nvarchar(100) not null constraint pk_app_setting primary key,
+    value nvarchar(max) null
+);

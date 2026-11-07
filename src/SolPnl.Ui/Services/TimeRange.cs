@@ -14,7 +14,19 @@ public sealed record TimeRange(string Key, string Label, TimeSpan Span)
     public static TimeRange FromKey(string? key) => All.FirstOrDefault(r => r.Key == key) ?? Last24Hours;
 }
 
-/// <summary>Device health from the age of its newest reading.</summary>
+public enum DeviceState
+{
+    Online,
+    Offline,
+    /// <summary>Configured and polled, but nothing stored yet.</summary>
+    Waiting,
+    /// <summary>Configured, but its plugin is disabled.</summary>
+    Paused,
+    /// <summary>Has stored history but is no longer configured.</summary>
+    NotConfigured,
+}
+
+/// <summary>Device health from its configuration and the age of its newest reading.</summary>
 public static class DeviceStatus
 {
     /// <summary>Six missed 10-second polls.</summary>
@@ -22,4 +34,11 @@ public static class DeviceStatus
 
     public static bool IsOnline(DateTimeOffset? lastReading, DateTimeOffset now) =>
         lastReading is { } t && now - t <= OfflineAfter;
+
+    public static DeviceState For(bool configured, bool pluginEnabled, DateTimeOffset? lastReading, DateTimeOffset now) =>
+        !configured ? DeviceState.NotConfigured
+        : !pluginEnabled ? DeviceState.Paused
+        : lastReading is null ? DeviceState.Waiting
+        : IsOnline(lastReading, now) ? DeviceState.Online
+        : DeviceState.Offline;
 }

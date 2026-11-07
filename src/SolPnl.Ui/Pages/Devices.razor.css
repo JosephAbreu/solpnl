@@ -24,3 +24,24 @@
     text-align: center;
     color: var(--colorNeutralForeground3);
 }
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 40px 24px;
+    text-align: center;
+}
+
+    .empty-state h2 {
+        margin: 0;
+        font-size: var(--fontSizeBase500);
+        font-weight: var(--fontWeightSemibold);
+        color: var(--colorNeutralForeground1);
+    }
+
+    .empty-state p {
+        margin: 0 0 8px;
+        color: var(--colorNeutralForeground3);
+    }

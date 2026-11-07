@@ -34,6 +34,9 @@ $repo = Split-Path -Parent $PSScriptRoot
 $hostName = ($Target -split "@")[-1]
 
 function Invoke-Remote([string]$Command) {
+    # This script may be checked out with CRLF line endings (Windows); bash must never see '\r'
+    # ('set -e\r' is an invalid option and aborts the whole command).
+    $Command = $Command -replace "`r", ""
     ssh -o BatchMode=yes $Target $Command
     if ($LASTEXITCODE -ne 0) { throw "Remote command failed ($LASTEXITCODE): $Command" }
 }

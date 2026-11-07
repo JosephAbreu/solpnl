@@ -41,6 +41,66 @@ public sealed class SolPnlApi(HttpClient http)
         return new SetupResult(false, $"SolPnl answered {(int)response.StatusCode} {response.ReasonPhrase}.");
     }
 
+    // ---- Plugins and device configuration --------------------------------------------------------------------
+
+    public async Task<IReadOnlyList<PluginInfo>> GetPluginsAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<PluginInfo>>("api/v1/plugins", Json, ct) ?? [];
+
+    public async Task<ApiResult<PluginInfo>> SetPluginEnabledAsync(string pluginId, bool enabled, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync($"api/v1/plugins/{Uri.EscapeDataString(pluginId)}",
+            new SetPluginEnabledRequest(enabled), Json, ct);
+        return await ReadResultAsync<PluginInfo>(response, ct);
+    }
+
+    public async Task<IReadOnlyList<ConfiguredDevice>> GetConfiguredDevicesAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<ConfiguredDevice>>("api/v1/config/devices", Json, ct) ?? [];
+
+    public async Task<DeviceTestResult> TestDeviceAsync(AddDeviceRequest request, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/v1/config/devices/test", request, Json, ct);
+        var result = await ReadResultAsync<DeviceTestResult>(response, ct);
+        return result.Value ?? new DeviceTestResult(false, result.Error ?? "The test failed.");
+    }
+
+    public async Task<ApiResult<ConfiguredDevice>> AddDeviceAsync(AddDeviceRequest request, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync("api/v1/config/devices", request, Json, ct);
+        return await ReadResultAsync<ConfiguredDevice>(response, ct);
+    }
+
+    public async Task<ApiResult<bool>> RemoveDeviceAsync(int id, bool deleteHistory, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/v1/config/devices/{id}?deleteHistory={(deleteHistory ? "true" : "false")}", ct);
+        if (response.IsSuccessStatusCode) return new ApiResult<bool>(true, null);
+        return new ApiResult<bool>(false, (await ReadResultAsync<object>(response, ct)).Error);
+    }
+
+    /// <summary>Deletes the stored history of a device that is no longer configured.</summary>
+    public async Task<ApiResult<bool>> DeleteDeviceHistoryAsync(string deviceId, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/v1/devices/{Uri.EscapeDataString(deviceId)}", ct);
+        if (response.IsSuccessStatusCode) return new ApiResult<bool>(true, null);
+        return new ApiResult<bool>(false, (await ReadResultAsync<object>(response, ct)).Error);
+    }
+
+    /// <summary>Success body as <typeparamref name="T"/>, or the server's <see cref="ApiError"/> message.</summary>
+    private static async Task<ApiResult<T>> ReadResultAsync<T>(HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            if (response.IsSuccessStatusCode)
+                return new ApiResult<T>(await response.Content.ReadFromJsonAsync<T>(Json, ct), null);
+
+            var error = await response.Content.ReadFromJsonAsync<ApiError>(Json, ct);
+            return new ApiResult<T>(default, error?.Error ?? $"SolPnl answered {(int)response.StatusCode} {response.ReasonPhrase}.");
+        }
+        catch (JsonException)
+        {
+            return new ApiResult<T>(default, $"SolPnl answered {(int)response.StatusCode} {response.ReasonPhrase}.");
+        }
+    }
+
     public async Task<IReadOnlyList<DeviceInfo>> GetDevicesAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<DeviceInfo>>("api/v1/devices", Json, ct) ?? [];
 
@@ -63,4 +123,10 @@ public sealed class SolPnlApi(HttpClient http)
         return await http.GetFromJsonAsync<HistoryResult>(url, Json, ct)
                ?? new HistoryResult(deviceId, metric, null, resolution ?? HistoryResolution.Raw, []);
     }
+}
+
+/// <summary>Either a value or a user-facing error message from SolPnl.</summary>
+public sealed record ApiResult<T>(T? Value, string? Error)
+{
+    public bool Ok => Error is null;
 }
