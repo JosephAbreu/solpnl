@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using SolPnl.Contracts.Models;
 using SolPnl.Contracts.Plugins;
 using SolPnl.Core;
 using SolPnl.Core.Data;
@@ -10,6 +13,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
 builder.Services.AddOpenApi();
+builder.Services.ConfigureHttpJsonOptions(o =>
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 builder.Services.AddSolPnlCore(builder.Configuration);
 
 // Device plugins. Registered directly for now; dynamic plugin loading comes later.
@@ -47,14 +52,23 @@ api.MapGet("/readings/latest", (string? device, IReadingStore store, Cancellatio
        store.GetLatestAsync(device, ct))
    .WithName("GetLatestReadings");
 
+// resolution: raw | minute | hour; omitted = chosen from the range (raw up to 2 h, minute up to 3 days, else hour).
 api.MapGet("/readings/history", async (string device, string metric, DateTimeOffset? from, DateTimeOffset? to,
-       IReadingStore store, CancellationToken ct) =>
+       string? resolution, IReadingStore store, TimeProvider time, CancellationToken ct) =>
    {
-       var end = to ?? DateTimeOffset.UtcNow;
+       HistoryResolution? parsed = null;
+       if (!string.IsNullOrEmpty(resolution) && !resolution.Equals("auto", StringComparison.OrdinalIgnoreCase))
+       {
+           if (!Enum.TryParse<HistoryResolution>(resolution, ignoreCase: true, out var value) || !Enum.IsDefined(value))
+               return Results.BadRequest(new { error = "'resolution' must be raw, minute, hour or auto." });
+           parsed = value;
+       }
+
+       var end = to ?? time.GetUtcNow();
        var start = from ?? end.AddHours(-24);
        if (start > end)
            return Results.BadRequest(new { error = "'from' must be before 'to'." });
-       return Results.Ok(await store.GetHistoryAsync(device, metric, start, end, ct));
+       return Results.Ok(await store.GetHistoryAsync(device, metric, start, end, parsed, ct));
    })
    .WithName("GetReadingHistory");
 

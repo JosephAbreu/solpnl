@@ -15,6 +15,8 @@ public sealed class SolPnlDb(DbContextOptions<SolPnlDb> options) : DbContext(opt
     public DbSet<MetricEntity> Metrics => Set<MetricEntity>();
     public DbSet<ReadingEntity> Readings => Set<ReadingEntity>();
     public DbSet<LatestReadingEntity> LatestReadings => Set<LatestReadingEntity>();
+    public DbSet<RollupEntity> Rollups => Set<RollupEntity>();
+    public DbSet<RollupStateEntity> RollupStates => Set<RollupStateEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -61,7 +63,59 @@ public sealed class SolPnlDb(DbContextOptions<SolPnlDb> options) : DbContext(opt
             e.Property(x => x.TimestampMs).HasColumnName("ts_ms");
             e.Property(x => x.Value).HasColumnName("value");
         });
+
+        modelBuilder.Entity<RollupEntity>(e =>
+        {
+            e.ToTable("reading_rollup");
+            e.HasKey(x => new { x.DeviceId, x.MetricId, x.ResolutionMs, x.BucketMs });
+            e.Property(x => x.DeviceId).HasColumnName("device_id");
+            e.Property(x => x.MetricId).HasColumnName("metric_id");
+            e.Property(x => x.ResolutionMs).HasColumnName("resolution_ms");
+            e.Property(x => x.BucketMs).HasColumnName("bucket_ms");
+            e.Property(x => x.ValueSum).HasColumnName("value_sum");
+            e.Property(x => x.ValueMin).HasColumnName("value_min");
+            e.Property(x => x.ValueMax).HasColumnName("value_max");
+            e.Property(x => x.SampleCount).HasColumnName("sample_count");
+        });
+
+        modelBuilder.Entity<RollupStateEntity>(e =>
+        {
+            e.ToTable("rollup_state");
+            e.HasKey(x => x.ResolutionMs);
+            e.Property(x => x.ResolutionMs).HasColumnName("resolution_ms").ValueGeneratedNever();
+            e.Property(x => x.WatermarkMs).HasColumnName("watermark_ms");
+        });
     }
+}
+
+/// <summary>Bucket sizes used for summaries.</summary>
+public static class Resolutions
+{
+    public const long MinuteMs = 60_000;
+    public const long HourMs = 3_600_000;
+}
+
+/// <summary>
+/// Summary of one metric over one bucket. Sum and count (rather than a mean) are stored so coarser buckets can be
+/// built exactly from finer ones.
+/// </summary>
+public sealed class RollupEntity
+{
+    public int DeviceId { get; set; }
+    public int MetricId { get; set; }
+    public long ResolutionMs { get; set; }
+    public long BucketMs { get; set; }
+    public double ValueSum { get; set; }
+    public double ValueMin { get; set; }
+    public double ValueMax { get; set; }
+    public int SampleCount { get; set; }
+}
+
+/// <summary>Rollup progress per resolution: every bucket starting before the watermark has been summarised.</summary>
+public sealed class RollupStateEntity
+{
+    public long ResolutionMs { get; set; }
+    public long WatermarkMs { get; set; }
 }
 
 public sealed class DeviceEntity

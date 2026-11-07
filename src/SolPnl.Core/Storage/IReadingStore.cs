@@ -13,7 +13,12 @@ public interface IReadingStore
     /// <summary>Latest value of every metric, optionally for a single device.</summary>
     Task<IReadOnlyList<Reading>> GetLatestAsync(string? deviceId = null, CancellationToken cancellationToken = default);
 
-    /// <summary>Raw values of one metric in [from, to], oldest first.</summary>
-    Task<IReadOnlyList<HistoryPoint>> GetHistoryAsync(
-        string deviceId, string metric, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Values of one metric in [from, to], oldest first. With no <paramref name="resolution"/>, the finest resolution
+    /// that keeps the point count reasonable and is still retained for <paramref name="from"/> is chosen.
+    /// Summaries cover completed buckets only, so the newest minute (or hour) may not appear yet.
+    /// </summary>
+    Task<HistoryResult> GetHistoryAsync(
+        string deviceId, string metric, DateTimeOffset from, DateTimeOffset to,
+        HistoryResolution? resolution = null, CancellationToken cancellationToken = default);
 }
