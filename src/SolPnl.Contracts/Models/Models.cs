@@ -72,8 +72,11 @@ public static class Metrics
     public const string LoadPower = "load.power";         // W
     public const string LoadApparentPower = "load.apparent_power"; // VA
     public const string LoadCurrent = "load.current";     // A
+    public const string LoadPercent = "load.percent";     // %, of the inverter's rated output
     public const string GridPower = "grid.power";         // W, + import / - export
     public const string GridVoltage = "grid.voltage";     // V
+    public const string GridCurrent = "grid.current";     // A
+    public const string GridApparentPower = "grid.apparent_power"; // VA
     public const string GridFrequency = "grid.frequency"; // Hz
     public const string InverterVoltage = "inverter.voltage";     // V, AC output
     public const string InverterCurrent = "inverter.current";     // A, AC output
