@@ -1,10 +1,12 @@
 ﻿using System.Globalization;
+using SolPnl.Plugin.SolarmanSrne;
 using SolPnl.Plugin.SolarmanSrne.Protocol;
 
 // SolPnl probe: verifies local Modbus access through a Solarman V5 stick logger and dumps raw registers.
 //
 //   dotnet run --project tools/SolPnl.Probe -- --host 192.168.1.50 --serial 2712345678
 //   dotnet run --project tools/SolPnl.Probe -- --host 192.168.1.50 --serial 2712345678 --range 0x0100:32 --verbose
+//   dotnet run --project tools/SolPnl.Probe -- --host 192.168.1.50 --serial 2712345678 --decode
 
 var options = ParseArgs(args);
 if (options is null)
@@ -12,6 +14,9 @@ if (options is null)
     PrintUsage();
     return 1;
 }
+
+if (options.Decode)
+    return await DecodeAsync(options);
 
 // Default ranges cover the blocks commonly used by SRNE-family hybrid inverters
 // (device info, real-time battery/PV, inverter/grid/load). Unconfirmed for this model — that's what we're probing.
@@ -85,6 +90,33 @@ foreach (var (start, count) in ranges)
 
 return failures == 0 ? 0 : 3;
 
+static async Task<int> DecodeAsync(ProbeOptions options)
+{
+    await using var plugin = new SolarmanSrnePlugin(new SolarmanSrneOptions
+    {
+        Host = options.Host,
+        LoggerSerial = options.Serial,
+        Port = options.Port,
+        SlaveId = options.SlaveId,
+        Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds),
+    });
+
+    try
+    {
+        var readings = await plugin.ReadAsync();
+        Console.WriteLine($"Inverter clock: {plugin.LastInverterClock?.ToString("yyyy-MM-dd HH:mm:ss") ?? "unknown"}");
+        Console.WriteLine();
+        foreach (var r in readings.OrderBy(r => r.Metric, StringComparer.Ordinal))
+            Console.WriteLine($"  {r.Metric,-26} {r.Value,10:0.###} {r.Unit}");
+        return 0;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Read failed: {ex.Message}");
+        return 3;
+    }
+}
+
 static void PrintHeader() => Console.WriteLine("  addr     hex     uint16    int16");
 
 static void PrintRegister(int address, ushort value) =>
@@ -98,6 +130,7 @@ static ProbeOptions? ParseArgs(string[] args)
     byte slave = 1, function = ModbusRtu.ReadHoldingRegisters;
     var verbose = false;
     var scan = true;
+    var decode = false;
     var ranges = new List<(int Start, int Count)>();
 
     try
@@ -115,6 +148,7 @@ static ProbeOptions? ParseArgs(string[] args)
                 case "--timeout": timeout = (int)ParseNumber(Next()); break;
                 case "--verbose" or "-v": verbose = true; break;
                 case "--no-scan": scan = false; break;
+                case "--decode": decode = true; break;
                 case "--range":
                     var parts = Next().Split(':');
                     if (parts.Length != 2) throw new FormatException("--range must be START:COUNT, e.g. 0x0100:32");
@@ -133,7 +167,7 @@ static ProbeOptions? ParseArgs(string[] args)
 
     return host is null || serial is null
         ? null
-        : new ProbeOptions(host, serial.Value, port, slave, function, timeout, verbose, scan, ranges);
+        : new ProbeOptions(host, serial.Value, port, slave, function, timeout, verbose, scan, decode, ranges);
 }
 
 static long ParseNumber(string text) =>
@@ -153,8 +187,9 @@ static void PrintUsage() => Console.WriteLine("""
       --timeout <sec>      Per-request timeout (default 10)
       --verbose, -v        Print raw V5 frames
       --no-scan            Do not retry failed block reads one register at a time
+      --decode             Read through the SRNE plugin and print named metrics instead of raw registers
     """);
 
 internal sealed record ProbeOptions(
-    string Host, uint Serial, int Port, byte SlaveId, byte Function, int TimeoutSeconds, bool Verbose, bool Scan,
+    string Host, uint Serial, int Port, byte SlaveId, byte Function, int TimeoutSeconds, bool Verbose, bool Scan, bool Decode,
     List<(int Start, int Count)> Ranges);
