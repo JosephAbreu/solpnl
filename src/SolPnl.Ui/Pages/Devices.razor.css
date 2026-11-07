@@ -1,0 +1,26 @@
+.filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.count {
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+.grid-panel {
+    padding: 0;
+    overflow-x: auto;
+}
+
+    .grid-panel a {
+        color: var(--colorBrandForegroundLink);
+    }
+
+.none {
+    padding: 24px;
+    text-align: center;
+    color: var(--colorNeutralForeground3);
+}

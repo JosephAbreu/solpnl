@@ -13,6 +13,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/SolPnl.Core.Tests/SolPnl.Core.Tests.csproj" />
     <Project Path="tests/SolPnl.Plugin.SolarmanSrne.Tests/SolPnl.Plugin.SolarmanSrne.Tests.csproj" />
+    <Project Path="tests/SolPnl.Ui.Tests/SolPnl.Ui.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/SolPnl.Probe/SolPnl.Probe.csproj" />

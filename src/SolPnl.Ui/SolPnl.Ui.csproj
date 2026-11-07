@@ -13,6 +13,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.14" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="5.0.1" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="5.0.1" />
   </ItemGroup>
 
   <ItemGroup>

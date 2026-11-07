@@ -12,8 +12,8 @@ and alerting on the server, and depends on outside services only when a plugin y
 | `src/SolPnl.Contracts` | Shared models and plugin interfaces (`IDevicePlugin`, `INotificationPlugin`) |
 | `src/SolPnl.Core` | Plugin loading, polling, storage, alerting |
 | `src/SolPnl.Api` | ASP.NET Core REST API (`/api/v1`); also hosts the web app |
-| `src/SolPnl.Ui` | Razor Class Library with shared UI components (reusable by a future MAUI Blazor Hybrid app) |
-| `src/SolPnl.Web` | Blazor WebAssembly PWA |
+| `src/SolPnl.Ui` | Shared UI (Fluent UI Blazor): layout, pages, components and SVG charts; reusable by a future MAUI Blazor Hybrid app |
+| `src/SolPnl.Web` | Blazor WebAssembly PWA host for `SolPnl.Ui` |
 | `src/plugins/SolPnl.Plugin.SolarmanSrne` | Solarman V5 logger + SRNE-family inverters (e.g. Sungoldpower 10kW split phase) |
 | `src/plugins/SolPnl.Plugin.Notify.Smtp` | Email notifications |
 | `tools/SolPnl.Probe` | CLI to verify local access to a Solarman logger and dump raw registers |
@@ -28,6 +28,18 @@ dotnet test SolPnl.slnx --filter "Category!=Containers"   # fast tests (SQLite o
 dotnet test SolPnl.slnx                                   # all tests; MySQL/MariaDB/SQL Server need Docker
 dotnet run --project src/SolPnl.Api
 ```
+
+Then open http://localhost:5255 (the URL printed at startup) for the dashboard.
+
+## Web UI
+A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net) and served by `SolPnl.Api`:
+- **Dashboard** – current solar output, load, grid voltage and temperature, plus solar/load and per-string charts.
+- **Devices** – every device with status and last reading; filterable (also from the header search).
+- **Device page** – Essentials, current values and charts (Overview tab), and every reported metric with a chart
+  for any of them (Metrics tab).
+
+Charts are dependency-free SVG with a hover/keyboard crosshair tooltip, a table view, and light/dark themes. All assets
+are bundled locally (no CDNs).
 
 ## Configuration
 Machine-specific settings go in `src/SolPnl.Api/appsettings.Local.json` (git-ignored):

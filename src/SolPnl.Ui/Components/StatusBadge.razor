@@ -1,0 +1,14 @@
+@* Device status: always icon + label, never color alone. *@
+
+@if (Online)
+{
+    <span class="status good"><FluentIcon Value="@(new Icons.Filled.Size16.CheckmarkCircle())" CustomColor="var(--status-good)" Color="Color.Custom" />Online</span>
+}
+else
+{
+    <span class="status critical"><FluentIcon Value="@(new Icons.Filled.Size16.ErrorCircle())" CustomColor="var(--status-critical)" Color="Color.Custom" />Offline</span>
+}
+
+@code {
+    [Parameter, EditorRequired] public bool Online { get; set; }
+}

@@ -1,0 +1,39 @@
+.range-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+.range-label {
+    margin-right: 8px;
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+.range-option {
+    padding: 4px 12px;
+    border: 1px solid var(--colorNeutralStroke1);
+    border-radius: var(--borderRadiusCircular);
+    background: var(--colorNeutralBackground1);
+    color: var(--colorNeutralForeground1);
+    font: inherit;
+    font-size: var(--fontSizeBase200);
+    cursor: pointer;
+}
+
+    .range-option:hover {
+        background: var(--colorNeutralBackground1Hover);
+    }
+
+    .range-option:focus-visible {
+        outline: 2px solid var(--colorStrokeFocus2);
+        outline-offset: 1px;
+    }
+
+    .range-option.selected {
+        border-color: var(--colorBrandStroke1);
+        background: var(--colorBrandBackground2);
+        color: var(--colorBrandForeground2);
+        font-weight: var(--fontWeightSemibold);
+    }

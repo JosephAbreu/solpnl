@@ -1,0 +1,57 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Nav
+@inject IThemeService Theme
+
+@* Portal-style shell: top bar (brand, global search, settings), collapsible left navigation, content. *@
+<FluentLayout>
+    <FluentLayoutItem Area="LayoutArea.Header" Class="shell-header">
+        <FluentLayoutHamburger />
+        <a class="brand" href="">
+            <FluentIcon Value="@(new Icons.Filled.Size20.WeatherSunny())" Color="Color.Custom" CustomColor="#f2b705" />
+            <span>SolPnl</span>
+        </a>
+
+        <form class="search" role="search" @onsubmit="Search">
+            <FluentTextInput @bind-Value="_query" Placeholder="Search devices" aria-label="Search devices"
+                             StartTemplate="@SearchIcon" Width="100%" />
+        </form>
+
+        <FluentSpacer />
+
+        <FluentButton Appearance="ButtonAppearance.Transparent" IconOnly="true" Title="Switch light/dark theme"
+                      aria-label="Switch light/dark theme" OnClick="ToggleThemeAsync"
+                      IconStart="@(new Icons.Regular.Size20.DarkTheme().WithColor("#ffffff"))" />
+    </FluentLayoutItem>
+
+    <FluentLayoutItem Area="LayoutArea.Navigation">
+        <NavMenu />
+    </FluentLayoutItem>
+
+    <FluentLayoutItem Area="LayoutArea.Content" Class="shell-content">
+        <ErrorBoundary @ref="_errorBoundary">
+            <ChildContent>@Body</ChildContent>
+            <ErrorContent Context="ex">
+                <div class="page">
+                    <FluentMessageBar Intent="MessageBarIntent.Error" Title="Something went wrong">@ex.Message</FluentMessageBar>
+                </div>
+            </ErrorContent>
+        </ErrorBoundary>
+    </FluentLayoutItem>
+</FluentLayout>
+
+<FluentProviders />
+
+@code {
+    private string? _query;
+    private ErrorBoundary? _errorBoundary;
+
+    private static readonly RenderFragment SearchIcon =
+        @<FluentIcon Value="@(new Icons.Regular.Size16.Search())" />;
+
+    protected override void OnParametersSet() => _errorBoundary?.Recover();
+
+    private void Search() =>
+        Nav.NavigateTo(string.IsNullOrWhiteSpace(_query) ? "devices" : $"devices?q={Uri.EscapeDataString(_query.Trim())}");
+
+    private Task ToggleThemeAsync() => Theme.SwitchThemeAsync();
+}

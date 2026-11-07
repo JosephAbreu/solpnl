@@ -1,0 +1,18 @@
+@* One filter row above the charts it scopes. Presets only; the API picks the resolution. *@
+
+<div class="range-bar" role="group" aria-label="Time range">
+    <span class="range-label">Time range</span>
+    @foreach (var range in TimeRange.All)
+    {
+        var selected = range == Value;
+        <button type="button" class="range-option @(selected ? "selected" : null)" aria-pressed="@(selected ? "true" : "false")"
+                @onclick="() => ValueChanged.InvokeAsync(range)">
+            @range.Label
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public TimeRange Value { get; set; } = TimeRange.Last24Hours;
+    [Parameter] public EventCallback<TimeRange> ValueChanged { get; set; }
+}
