@@ -37,8 +37,10 @@ if (app.Environment.IsDevelopment())
 }
 
 // Serve the Blazor WebAssembly PWA (SolPnl.Web) from this same process: one service on the Pi.
-app.UseBlazorFrameworkFiles();
-app.UseStaticFiles();
+// MapStaticAssets serves the WebAssembly client (_framework) and the fingerprinted URLs .NET 10 generates for
+// app and library assets (e.g. _content/SolPnl.Ui/solpnl.<hash>.js), with compression and caching headers.
+// (UseBlazorFrameworkFiles must not be added: its /_framework branch bypasses these endpoints.)
+app.MapStaticAssets();
 
 var api = app.MapGroup("/api/v1");
 

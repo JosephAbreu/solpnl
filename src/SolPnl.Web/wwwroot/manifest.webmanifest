@@ -1,11 +1,11 @@
 {
-  "name": "SolPnl.Web",
-  "short_name": "SolPnl.Web",
+  "name": "SolPnl",
+  "short_name": "SolPnl",
   "id": "./",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#03173d",
+  "theme_color": "#1d2733",
   "prefer_related_applications": false,
   "icons": [
     {

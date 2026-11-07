@@ -1,0 +1,59 @@
+.now {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(0, 2fr);
+    gap: 12px;
+}
+
+    .now > * {
+        min-width: 0;
+    }
+
+@media (max-width: 900px) {
+    .now {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.hero {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+
+.hero-label {
+    font-size: var(--fontSizeBase300);
+    color: var(--colorNeutralForeground3);
+}
+
+/* The one hero figure on the page: >= 48px, same sans as everything else. */
+.hero-value {
+    font-size: 52px;
+    line-height: 1.1;
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+.hero-detail {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground2);
+}
+
+.sep,
+.muted {
+    color: var(--colorNeutralForeground3);
+}
+
+.device-link {
+    margin: 0;
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+    .device-link a {
+        color: var(--colorBrandForegroundLink);
+    }

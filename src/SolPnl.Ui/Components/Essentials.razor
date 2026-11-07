@@ -1,0 +1,18 @@
+@* Portal-style "Essentials" panel: key/value pairs in two columns. *@
+
+<section class="essentials panel" aria-label="Essentials">
+    <h2>Essentials</h2>
+    <dl>
+        @foreach (var (key, value) in Items)
+        {
+            <div class="item">
+                <dt>@key</dt>
+                <dd>@value</dd>
+            </div>
+        }
+    </dl>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<(string Key, RenderFragment Value)> Items { get; set; } = [];
+}

@@ -1,0 +1,134 @@
+@* A chart card that loads its own history: title, resolution note, chart/table switch. *@
+@inject SolPnlApi Api
+
+<section class="chart-card panel" aria-label="@Title">
+    <div class="card-head">
+        <div>
+            <h3>@Title</h3>
+            <div class="note">@Note</div>
+        </div>
+        <div class="view-switch" role="group" aria-label="View">
+            <FluentButton Appearance="@(_showTable ? ButtonAppearance.Subtle : ButtonAppearance.Outline)" Size="ButtonSize.Small"
+                          IconStart="@(new Icons.Regular.Size16.DataLine())" OnClick="() => _showTable = false"
+                          aria-pressed="@(!_showTable ? "true" : "false")">Chart</FluentButton>
+            <FluentButton Appearance="@(_showTable ? ButtonAppearance.Outline : ButtonAppearance.Subtle)" Size="ButtonSize.Small"
+                          IconStart="@(new Icons.Regular.Size16.Table())" OnClick="() => _showTable = true"
+                          aria-pressed="@(_showTable ? "true" : "false")">Table</FluentButton>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning">Couldn't load this chart: @_error</FluentMessageBar>
+    }
+    else if (_showTable)
+    {
+        <div class="table-wrap @(_loading ? "is-loading" : null)">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">Time</th>
+                        @foreach (var s in _series)
+                        {
+                            <th scope="col" class="num">@s.Name</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    <Virtualize Items="_rows" ItemSize="29" SpacerElement="tr" Context="row">
+                        <tr>
+                            <td>@row.Time.ToLocalTime().ToString(_resolution == HistoryResolution.Raw ? "G" : "g", CultureInfo.CurrentCulture)</td>
+                            @foreach (var value in row.Values)
+                            {
+                                <td class="num">@(value is { } v ? MetricFormat.Format(v, _unit) : "–")</td>
+                            }
+                        </tr>
+                    </Virtualize>
+                </tbody>
+            </table>
+            @if (_rows.Count == 0 && !_loading)
+            {
+                <div class="no-rows">No data for this time range yet</div>
+            }
+        </div>
+    }
+    else
+    {
+        <TimeSeriesChart Series="_series" From="_from" To="_to" Unit="@_unit" Resolution="_resolution"
+                         ZeroBaseline="ZeroBaseline" Height="Height" Loading="_loading" AriaLabel="@Title" />
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string DeviceId { get; set; } = "";
+    [Parameter, EditorRequired] public IReadOnlyList<SeriesSpec> Series { get; set; } = [];
+    [Parameter, EditorRequired] public TimeRange Range { get; set; } = TimeRange.Last24Hours;
+
+    /// <summary>Change this value to reload (e.g. a periodic refresh counter).</summary>
+    [Parameter] public int RefreshKey { get; set; }
+    [Parameter] public bool ZeroBaseline { get; set; } = true;
+    [Parameter] public int Height { get; set; } = 240;
+
+    private IReadOnlyList<ChartSeries> _series = [];
+    private List<Row> _rows = [];
+    private DateTimeOffset _from, _to;
+    private string? _unit;
+    private HistoryResolution _resolution;
+    private bool _loading, _showTable;
+    private string? _error;
+    private string? _loadedKey;
+
+    private string Note => _resolution switch
+    {
+        HistoryResolution.Raw => $"{Range.Label} · every reading",
+        HistoryResolution.Minute => $"{Range.Label} · 1-minute averages",
+        HistoryResolution.Hour => $"{Range.Label} · hourly averages",
+        _ => Range.Label,
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = $"{DeviceId}|{Range.Key}|{RefreshKey}|{string.Join(",", Series.Select(s => s.Metric))}";
+        if (key == _loadedKey) return;
+        _loadedKey = key;
+
+        _loading = true;
+        try
+        {
+            var to = DateTimeOffset.UtcNow;
+            var from = to - Range.Span;
+            var results = await Task.WhenAll(Series.Select(s => Api.GetHistoryAsync(DeviceId, s.Metric, from, to)));
+
+            _from = from;
+            _to = to;
+            _unit = results.Select(r => r.Unit).FirstOrDefault(u => u is not null);
+            _resolution = results.Length > 0 ? results[0].Resolution : HistoryResolution.Raw;
+            _series = Series.Zip(results, (spec, r) => new ChartSeries(spec.Name, spec.Color, r.Points))
+                .Where(s => s.Points.Count > 0 || Series.Count == 1)
+                .ToList();
+            _rows = BuildRows(_series);
+            _error = null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>Union of timestamps across series, newest first, one column per series.</summary>
+    private static List<Row> BuildRows(IReadOnlyList<ChartSeries> series)
+    {
+        var lookups = series.Select(s => s.Points.GroupBy(p => p.Timestamp).ToDictionary(g => g.Key, g => g.Last().Value)).ToList();
+        return series.SelectMany(s => s.Points.Select(p => p.Timestamp)).Distinct()
+            .OrderByDescending(t => t)
+            .Select(t => new Row(t, lookups.Select(l => l.TryGetValue(t, out var v) ? v : (double?)null).ToArray()))
+            .ToList();
+    }
+
+    private sealed record Row(DateTimeOffset Time, double?[] Values);
+}

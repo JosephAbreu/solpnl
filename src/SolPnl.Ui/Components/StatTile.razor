@@ -1,0 +1,16 @@
+@* Stat tile: label (sentence case), value, optional detail line. *@
+
+<div class="stat-tile">
+    <div class="label">@Label</div>
+    <div class="value">@Value</div>
+    @if (!string.IsNullOrEmpty(Detail))
+    {
+        <div class="detail">@Detail</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter, EditorRequired] public string Value { get; set; } = "";
+    [Parameter] public string? Detail { get; set; }
+}
