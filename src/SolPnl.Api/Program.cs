@@ -1,79 +1,109 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using SolPnl.Contracts.Models;
+using SolPnl.Api;
 using SolPnl.Contracts.Plugins;
 using SolPnl.Core;
 using SolPnl.Core.Data;
-using SolPnl.Core.Storage;
+using SolPnl.Core.Setup;
 using SolPnl.Plugin.SolarmanSrne;
 
-var builder = WebApplication.CreateBuilder(args);
-
-// Machine-specific settings (device addresses, connection strings) live in an untracked file.
-builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
-
-builder.Services.AddOpenApi();
-builder.Services.ConfigureHttpJsonOptions(o =>
-    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
-builder.Services.AddSolPnlCore(builder.Configuration);
-
-// Device plugins. Registered directly for now; dynamic plugin loading comes later.
-var srne = builder.Configuration.GetSection("Plugins:SolarmanSrne");
-if (srne.Exists())
+// SolPnl runs in one of two modes:
+//  - Setup mode: no storage configured yet. Serves the web app and the setup wizard only (gated by a one-time code
+//    printed to the log). Saving the wizard writes the storage choice and restarts into normal mode.
+//  - Normal mode: storage, polling, maintenance and the full API.
+// The host is rebuilt in-process on restart, so this works the same under systemd and `dotnet run`.
+var restart = new RestartSignal();
+do
 {
-    var srneOptions = srne.Get<SolarmanSrneOptions>()
-        ?? throw new InvalidOperationException("Plugins:SolarmanSrne is invalid.");
-    builder.Services.AddSingleton<IDevicePlugin>(_ => new SolarmanSrnePlugin(srneOptions));
+    restart.Reset();
+    var app = BuildApp(args, restart);
+    if (app.Services.GetService<MigrationService>() is { } migrations)
+        await migrations.MigrateAsync();
+    await app.RunAsync();
+}
+while (restart.Requested);
+
+static WebApplication BuildApp(string[] args, RestartSignal restart)
+{
+    var builder = WebApplication.CreateBuilder(args);
+
+    // Machine-specific settings (storage, device addresses) live in an untracked file in the data directory:
+    // SOLPNL_DATA_DIR if set (e.g. /var/lib/solpnl on the Pi), otherwise the content root.
+    var dataDirectory = Environment.GetEnvironmentVariable("SOLPNL_DATA_DIR") is { Length: > 0 } dir
+        ? Path.GetFullPath(dir)
+        : builder.Environment.ContentRootPath;
+    var settingsFile = new LocalSettingsFile(Path.Combine(dataDirectory, LocalSettingsFile.FileName));
+    builder.Configuration.AddJsonFile(settingsFile.Path, optional: true, reloadOnChange: false);
+
+    builder.Services.AddOpenApi();
+    builder.Services.ConfigureHttpJsonOptions(o =>
+        o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
+    builder.Services.AddSingleton(restart);
+    builder.Services.AddSingleton(settingsFile);
+    builder.Services.AddSingleton(new SetupPaths(dataDirectory));
+
+    var setupRequired = !DbSettings.IsConfigured(builder.Configuration);
+    if (setupRequired)
+    {
+        builder.Services.AddSingleton(new SetupState());
+        builder.Services.AddSingleton(sp => new StorageSetupService(settingsFile, sp.GetRequiredService<ILoggerFactory>()));
+    }
+    else
+    {
+        builder.Services.AddSolPnlCore(builder.Configuration);
+
+        // Device plugins. Registered directly for now; dynamic plugin loading comes later.
+        var srne = builder.Configuration.GetSection("Plugins:SolarmanSrne");
+        if (srne.Exists())
+        {
+            var srneOptions = srne.Get<SolarmanSrneOptions>()
+                ?? throw new InvalidOperationException("Plugins:SolarmanSrne is invalid.");
+            builder.Services.AddSingleton<IDevicePlugin>(_ => new SolarmanSrnePlugin(srneOptions));
+        }
+    }
+
+    var app = builder.Build();
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapOpenApi();
+        app.UseWebAssemblyDebugging();
+    }
+
+    // Serve the Blazor WebAssembly PWA (SolPnl.Web) from this same process: one service on the Pi.
+    // MapStaticAssets serves the WebAssembly client (_framework) and the fingerprinted URLs .NET 10 generates for
+    // app and library assets (e.g. _content/SolPnl.Ui/solpnl.<hash>.js), with compression and caching headers.
+    // (UseBlazorFrameworkFiles must not be added: its /_framework branch bypasses these endpoints.)
+    app.MapStaticAssets();
+
+    var api = app.MapGroup("/api/v1");
+    api.MapHealthAndSetupStatus(setupRequired);
+
+    if (setupRequired)
+    {
+        api.MapSetupEndpoints();
+        app.Lifetime.ApplicationStarted.Register(() => LogSetupCode(app));
+    }
+    else
+    {
+        api.MapReadingEndpoints();
+    }
+
+    // Unknown API routes get a JSON error instead of the web app's index.html.
+    app.MapFallback("/api/{**path}", () => setupRequired
+        ? Results.Json(new { error = "SolPnl needs to be set up first. Open /setup." }, statusCode: StatusCodes.Status503ServiceUnavailable)
+        : Results.NotFound(new { error = "Unknown API endpoint." }));
+    app.MapFallbackToFile("index.html");
+
+    return app;
 }
 
-var app = builder.Build();
-
-await app.Services.GetRequiredService<MigrationService>().MigrateAsync();
-
-if (app.Environment.IsDevelopment())
+static void LogSetupCode(WebApplication app)
 {
-    app.MapOpenApi();
-    app.UseWebAssemblyDebugging();
+    var code = app.Services.GetRequiredService<SetupState>().Code;
+    var urls = string.Join(", ", app.Urls.Select(u => u.TrimEnd('/') + "/setup"));
+    app.Logger.LogWarning(
+        "SolPnl needs to be set up. Open {Urls} in a browser and enter setup code {Code}. " +
+        "(Use this machine's network address instead of localhost/0.0.0.0 when browsing from another device.)",
+        urls, code);
 }
-
-// Serve the Blazor WebAssembly PWA (SolPnl.Web) from this same process: one service on the Pi.
-// MapStaticAssets serves the WebAssembly client (_framework) and the fingerprinted URLs .NET 10 generates for
-// app and library assets (e.g. _content/SolPnl.Ui/solpnl.<hash>.js), with compression and caching headers.
-// (UseBlazorFrameworkFiles must not be added: its /_framework branch bypasses these endpoints.)
-app.MapStaticAssets();
-
-var api = app.MapGroup("/api/v1");
-
-api.MapGet("/health", () => Results.Ok(new { status = "ok", time = DateTimeOffset.UtcNow }))
-   .WithName("GetHealth");
-
-api.MapGet("/devices", (IReadingStore store, CancellationToken ct) => store.GetDevicesAsync(ct))
-   .WithName("GetDevices");
-
-api.MapGet("/readings/latest", (string? device, IReadingStore store, CancellationToken ct) =>
-       store.GetLatestAsync(device, ct))
-   .WithName("GetLatestReadings");
-
-// resolution: raw | minute | hour; omitted = chosen from the range (raw up to 2 h, minute up to 3 days, else hour).
-api.MapGet("/readings/history", async (string device, string metric, DateTimeOffset? from, DateTimeOffset? to,
-       string? resolution, IReadingStore store, TimeProvider time, CancellationToken ct) =>
-   {
-       HistoryResolution? parsed = null;
-       if (!string.IsNullOrEmpty(resolution) && !resolution.Equals("auto", StringComparison.OrdinalIgnoreCase))
-       {
-           if (!Enum.TryParse<HistoryResolution>(resolution, ignoreCase: true, out var value) || !Enum.IsDefined(value))
-               return Results.BadRequest(new { error = "'resolution' must be raw, minute, hour or auto." });
-           parsed = value;
-       }
-
-       var end = to ?? time.GetUtcNow();
-       var start = from ?? end.AddHours(-24);
-       if (start > end)
-           return Results.BadRequest(new { error = "'from' must be before 'to'." });
-       return Results.Ok(await store.GetHistoryAsync(device, metric, start, end, parsed, ct));
-   })
-   .WithName("GetReadingHistory");
-
-app.MapFallbackToFile("index.html");
-
-app.Run();

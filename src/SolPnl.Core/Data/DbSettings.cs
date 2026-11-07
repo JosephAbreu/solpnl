@@ -30,17 +30,23 @@ public sealed record DbSettings(DbDriver Driver, string ConnectionString)
         _ => throw new ArgumentOutOfRangeException(nameof(Driver)),
     };
 
+    /// <summary>True once storage has been chosen (Db:DriverName is set); until then SolPnl runs the setup wizard.</summary>
+    public static bool IsConfigured(IConfiguration configuration) =>
+        !string.IsNullOrWhiteSpace(configuration["Db:DriverName"]);
+
+    public static DbDriver ParseDriver(string driverName) => driverName.Trim().ToLowerInvariant() switch
+    {
+        "sqlite" => DbDriver.Sqlite,
+        "mysql" or "mariadb" => DbDriver.MySql,
+        "mssql" => DbDriver.SqlServer,
+        _ => throw new InvalidOperationException(
+            $"Unsupported storage driver '{driverName}'. Use sqlite, mysql (MySQL/MariaDB) or mssql."),
+    };
+
     public static DbSettings FromConfiguration(IConfiguration configuration)
     {
         var driverName = (configuration["Db:DriverName"] ?? "sqlite").Trim().ToLowerInvariant();
-        var driver = driverName switch
-        {
-            "sqlite" => DbDriver.Sqlite,
-            "mysql" or "mariadb" => DbDriver.MySql,
-            "mssql" => DbDriver.SqlServer,
-            _ => throw new InvalidOperationException(
-                $"Unsupported Db:DriverName '{driverName}'. Use sqlite, mysql (MySQL/MariaDB) or mssql."),
-        };
+        var driver = ParseDriver(driverName);
 
         var connectionString = configuration["Db:ConnectionString"];
         if (string.IsNullOrWhiteSpace(connectionString))

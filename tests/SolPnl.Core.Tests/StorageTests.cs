@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SolPnl.Contracts.Models;
 using SolPnl.Core.Data;
+using SolPnl.Core.Setup;
 using SolPnl.Core.Storage;
 using Testcontainers.MariaDb;
 using Testcontainers.MsSql;
@@ -47,6 +48,35 @@ public abstract class StorageTests : IAsyncLifetime
     private EfReadingStore Store() => new(_factory, Options.Create(_retention), _time);
     private RollupMaintenance Maintenance() =>
         new(_factory, Options.Create(_retention), _time, NullLogger<RollupMaintenance>.Instance);
+
+    [Fact]
+    public async Task SetupWizard_TestsCreatesSchemaAndSavesSettings()
+    {
+        var dir = Directory.CreateTempSubdirectory("solpnl-setup-");
+        try
+        {
+            var file = new LocalSettingsFile(Path.Combine(dir.FullName, LocalSettingsFile.FileName));
+            var request = new StorageSetupRequest { Code = "x", Driver = DriverName, ConnectionString = _settings.ConnectionString };
+            var settings = StorageSetupService.BuildSettings(request);
+
+            var test = await StorageSetupService.TestAsync(settings);
+            Assert.True(test.Ok, test.Message);
+            Assert.False(string.IsNullOrWhiteSpace(test.ServerVersion));
+
+            var applied = await new StorageSetupService(file).ApplyAsync(settings);
+            Assert.True(applied.Ok, applied.Message);
+
+            // Schema exists and the saved settings round-trip to the same database.
+            var saved = DbSettings.FromConfiguration(new ConfigurationBuilder().AddJsonFile(file.Path).Build());
+            Assert.Equal(_settings.Driver, saved.Driver);
+            await using var db = new SolPnlDbFactory(saved).CreateDbContext();
+            Assert.Equal(0, await db.Devices.CountAsync());
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
 
     [Fact]
     public async Task Migrate_AppliesAllScripts_AndIsIdempotent()

@@ -48,7 +48,23 @@
     private static readonly RenderFragment SearchIcon =
         @<FluentIcon Value="@(new Icons.Regular.Size16.Search())" />;
 
+    [Inject] private SolPnlApi Api { get; set; } = default!;
+
     protected override void OnParametersSet() => _errorBoundary?.Recover();
+
+    // First run: nothing works until storage is chosen, so send the user to the setup wizard.
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if ((await Api.GetSetupStatusAsync()).SetupRequired)
+                Nav.NavigateTo("setup", replace: true);
+        }
+        catch (HttpRequestException)
+        {
+            // Pages show their own "can't reach SolPnl" message.
+        }
+    }
 
     private void Search() =>
         Nav.NavigateTo(string.IsNullOrWhiteSpace(_query) ? "devices" : $"devices?q={Uri.EscapeDataString(_query.Trim())}");

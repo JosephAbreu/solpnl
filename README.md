@@ -41,26 +41,39 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
 Charts are dependency-free SVG with a hover/keyboard crosshair tooltip, a table view, and light/dark themes. All assets
 are bundled locally (no CDNs).
 
+## First-run setup
+On first start SolPnl has no storage configured and runs in **setup mode**: it serves only the setup wizard and
+writes a one-time setup code to its log:
+
+```
+SolPnl needs to be set up. Open http://localhost:5255/setup in a browser and enter setup code MP2X-WJMN.
+```
+
+Open `/setup` (from another device, use this machine's address), enter the code, choose storage, test the connection
+and select **Save and start**. SolPnl creates the database schema, saves the choice and restarts into normal mode.
+
+| Storage | Notes |
+|---|---|
+| SQLite (recommended) | A file on this machine; nothing else to install |
+| MySQL or MariaDB | Database must exist; the user needs permission to create tables |
+| SQL Server | Runs on another machine (no Raspberry Pi build) |
+
 ## Configuration
-Machine-specific settings go in `src/SolPnl.Api/appsettings.Local.json` (git-ignored):
+Machine-specific settings live in `appsettings.Local.json` (git-ignored) in the **data directory**: `SOLPNL_DATA_DIR`
+if set (e.g. `/var/lib/solpnl`), otherwise the content root (`src/SolPnl.Api` during development). The setup wizard
+writes the `Db` section; device plugins are configured there too:
 ```json
 {
+  "Db": { "DriverName": "sqlite", "ConnectionString": "Data Source=/var/lib/solpnl/solpnl.db" },
   "Plugins": {
     "SolarmanSrne": { "Host": "192.168.1.50", "LoggerSerial": 2712345678 }
   }
 }
 ```
+`Db:DriverName` is `sqlite`, `mysql` (MySQL or MariaDB) or `mssql`. On Linux the file is written owner-only
+because it can contain a database password. To change storage later, edit or remove the `Db` section and restart
+(removing it brings the setup wizard back).
 
-### Storage
-| `Db:DriverName` | Database | Notes |
-|---|---|---|
-| `sqlite` (default) | SQLite | No setup; `Data Source=solpnl.db` |
-| `mysql` | MySQL or MariaDB | Via `MySql.EntityFrameworkCore` |
-| `mssql` | SQL Server | Runs on another machine (no Raspberry Pi build) |
-
-```json
-"Db": { "DriverName": "mysql", "ConnectionString": "Server=localhost;Database=solpnl;User=solpnl;Password=...;" }
-```
 The schema is created and updated at startup from numbered SQL scripts in
 `src/SolPnl.Core/Data/Migrations/<driver>/`. Every schema change needs a new script for **each** driver.
 

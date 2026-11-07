@@ -1,0 +1,12 @@
+@inherits LayoutComponentBase
+
+@* Minimal shell for first-run setup: brand bar and a centered column, no navigation (nothing works until setup). *@
+<div class="setup-shell">
+    <header class="setup-header">
+        <FluentIcon Value="@(new Icons.Filled.Size20.WeatherSunny())" Color="Color.Custom" CustomColor="#f2b705" />
+        <span>SolPnl</span>
+    </header>
+    <main class="setup-main">@Body</main>
+</div>
+
+<FluentProviders />
