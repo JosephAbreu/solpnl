@@ -3,16 +3,52 @@
 @inject SolPnlApi Api
 @inject NavigationManager Nav
 
-<PageTitle>@DeviceId · SolPnl</PageTitle>
+<PageTitle>@Title · SolPnl</PageTitle>
 
 <div class="page">
-    <PageHeader Title="@DeviceId" Subtitle="@(_device is null ? "Device" : $"{_device.Vendor} · {_device.Model}")"
+    <PageHeader Title="@Title" Subtitle="@Subtitle"
                 Icon="@(new Icons.Regular.Size24.Flash())"
-                Breadcrumbs="@([("Home", ""), ("Devices", "devices"), (DeviceId, null)])">
+                Breadcrumbs="@([("Home", ""), ("Devices", "devices"), (Title, null)])">
         <Commands>
             <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowClockwise())" OnClick="RefreshAsync">Refresh</FluentButton>
+            @if (_device is { IsConfigured: true })
+            {
+                <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.Delete())" OnClick="() => _confirmRemove = true">Remove</FluentButton>
+            }
+            else if (_device is not null)
+            {
+                <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.Delete())" OnClick="() => _confirmDeleteHistory = true">Delete history</FluentButton>
+            }
         </Commands>
     </PageHeader>
+
+    @if (_actionError is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Error" Title="That didn't work">@_actionError</FluentMessageBar>
+    }
+
+    @if (_confirmRemove && _device?.Config is { } config)
+    {
+        <section class="panel confirm" role="alertdialog" aria-label="Confirm removing @config.Name">
+            <p><strong>Remove @config.Name?</strong> SolPnl stops polling it and forgets its settings.</p>
+            <FluentCheckbox @bind-Value="_removeHistory" Label="Also delete its recorded history (can't be undone)" />
+            <div class="confirm-actions">
+                <FluentButton Appearance="ButtonAppearance.Subtle" Disabled="_busy" OnClick="() => _confirmRemove = false">Cancel</FluentButton>
+                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="_busy" Loading="_busy" OnClick="RemoveAsync">Remove</FluentButton>
+            </div>
+        </section>
+    }
+
+    @if (_confirmDeleteHistory && _device is { IsConfigured: false })
+    {
+        <section class="panel confirm" role="alertdialog" aria-label="Confirm deleting history">
+            <p><strong>Delete all recorded history for @DeviceId?</strong> This can't be undone.</p>
+            <div class="confirm-actions">
+                <FluentButton Appearance="ButtonAppearance.Subtle" Disabled="_busy" OnClick="() => _confirmDeleteHistory = false">Cancel</FluentButton>
+                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="_busy" Loading="_busy" OnClick="DeleteHistoryAsync">Delete history</FluentButton>
+            </div>
+        </section>
+    }
 
     @if (_error is not null)
     {
@@ -21,7 +57,19 @@
     else if (_loaded && _device is null)
     {
         <FluentMessageBar Intent="MessageBarIntent.Info" Title="Device not found">
-            No device with ID @DeviceId has reported to SolPnl. <a href="devices">Back to devices</a>
+            No device with ID @DeviceId is configured or has history in SolPnl. <a href="devices">Back to devices</a>
+        </FluentMessageBar>
+    }
+    else if (_device is { IsConfigured: false })
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Info" Title="Not configured">
+            This device was removed from SolPnl; its recorded history is kept below.
+        </FluentMessageBar>
+    }
+    else if (_device is { Plugin.Enabled: false })
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Paused">
+            Not being polled because the @_device.PluginName plugin is disabled. <a href="plugins">Manage plugins</a>
         </FluentMessageBar>
     }
 
@@ -95,7 +143,13 @@
     [Parameter] public string DeviceId { get; set; } = "";
     [SupplyParameterFromQuery(Name = "range")] public string? RangeKey { get; set; }
 
-    private DeviceInfo? _device;
+    private DeviceRow? _device;
+    private bool _confirmRemove, _confirmDeleteHistory, _removeHistory, _busy;
+    private string? _actionError;
+
+    private string Title => _device?.Name ?? DeviceId;
+
+    private string Subtitle => _device?.Info is { } info ? $"{info.Vendor} · {info.Model}" : _device?.PluginName ?? "Device";
     private Dictionary<string, Reading> _latest = [];
     private List<Reading> _latestRows = [];
     private DateTimeOffset? _lastReading;
@@ -108,13 +162,15 @@
 
     private IReadOnlyList<(string, RenderFragment)> EssentialItems =>
     [
-        ("Status", @<StatusBadge Online="@DeviceStatus.IsOnline(_lastReading, DateTimeOffset.UtcNow)" />),
+        ("Status", @<StatusBadge State="@DeviceStatus.For(_device?.IsConfigured ?? false, _device?.Plugin?.Enabled ?? false, _lastReading, DateTimeOffset.UtcNow)" />),
+        ("Name", @<span>@(_device?.Name)</span>),
+        ("Plugin", @<span>@(_device?.PluginName)</span>),
         ("Last reading", @<span>@(_lastReading is { } t ? $"{MetricFormat.Ago(t, DateTimeOffset.UtcNow)} ({t.ToLocalTime():G})" : "never")</span>),
-        ("Vendor", @<span>@_device?.Vendor</span>),
-        ("Model", @<span>@_device?.Model</span>),
-        ("Serial number", @<span>@(_device?.SerialNumber ?? "–")</span>),
-        ("Firmware", @<span>@(_device?.FirmwareVersion ?? "Not reported")</span>),
-        ("Device ID", @<span>@_device?.DeviceId</span>),
+        ("Vendor", @<span>@(_device?.Info?.Vendor ?? "–")</span>),
+        ("Model", @<span>@(_device?.Info?.Model ?? "–")</span>),
+        ("Serial number", @<span>@(_device?.Info?.SerialNumber ?? "–")</span>),
+        ("Firmware", @<span>@(_device?.Info?.FirmwareVersion ?? "Not reported")</span>),
+        ("Device ID", @<span>@DeviceId</span>),
         ("Metrics", @<span>@_latest.Count reported</span>),
     ];
 
@@ -156,7 +212,7 @@
     {
         try
         {
-            _device ??= (await Api.GetDevicesAsync(_cts.Token)).FirstOrDefault(d => d.DeviceId == DeviceId);
+            _device = (await DeviceDirectory.LoadAsync(Api, _cts.Token)).FirstOrDefault(d => d.DeviceId == DeviceId);
             if (_device is not null)
             {
                 var latest = await Api.GetLatestAsync(DeviceId, _cts.Token);
@@ -187,6 +243,55 @@
         var l2 = Metrics.ForPhase(metric, 2);
         if (Has(l1) && Has(l2)) return $"{Value(l1)} / {Value(l2)}";
         return Has(l1) ? Value(l1) : Value(metric);
+    }
+
+    private async Task RemoveAsync()
+    {
+        if (_device?.Config is not { } config) return;
+        _busy = true;
+        _actionError = null;
+        try
+        {
+            var result = await Api.RemoveDeviceAsync(config.Id, _removeHistory);
+            if (result.Ok)
+            {
+                Nav.NavigateTo("devices");
+                return;
+            }
+            _actionError = result.Error;
+        }
+        catch (HttpRequestException ex)
+        {
+            _actionError = $"Can't reach SolPnl: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteHistoryAsync()
+    {
+        _busy = true;
+        _actionError = null;
+        try
+        {
+            var result = await Api.DeleteDeviceHistoryAsync(DeviceId);
+            if (result.Ok)
+            {
+                Nav.NavigateTo("devices");
+                return;
+            }
+            _actionError = result.Error;
+        }
+        catch (HttpRequestException ex)
+        {
+            _actionError = $"Can't reach SolPnl: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     public void Dispose()

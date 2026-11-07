@@ -18,8 +18,8 @@
     }
     else if (_loaded && _device is null)
     {
-        <FluentMessageBar Intent="MessageBarIntent.Info" Title="No devices are reporting yet">
-            Configure a device plugin in appsettings.Local.json, then restart SolPnl.
+        <FluentMessageBar Intent="MessageBarIntent.Info" Title="No devices yet">
+            <a href="devices/add">Add a device</a> so SolPnl can start recording.
         </FluentMessageBar>
     }
 
@@ -32,7 +32,7 @@
                 <div class="hero-detail">
                     @StringsDetail()
                     <span class="sep">·</span>
-                    <StatusBadge Online="@DeviceStatus.IsOnline(_lastReading, DateTimeOffset.UtcNow)" />
+                    <StatusBadge State="@DeviceStatus.For(_device.IsConfigured, _device.Plugin?.Enabled ?? false, _lastReading, DateTimeOffset.UtcNow)" />
                     @if (_lastReading is { } t)
                     {
                         <span class="muted">updated @MetricFormat.Ago(t, DateTimeOffset.UtcNow)</span>
@@ -64,8 +64,11 @@
         </div>
 
         <p class="device-link">
-            Showing <a href="@($"devices/{Uri.EscapeDataString(_device.DeviceId)}")">@_device.DeviceId</a>
-            (@_device.Vendor @_device.Model).
+            Showing <a href="@($"devices/{Uri.EscapeDataString(_device.DeviceId)}")">@_device.Name</a>
+            @if (_device.Info is { } info)
+            {
+                <span>(@info.Vendor @info.Model)</span>
+            }
         </p>
     }
 </div>
@@ -85,7 +88,7 @@
         new(Metrics.ForString(Metrics.PvPower, 2), "String 2", SeriesColors.Slot2),
     ];
 
-    private DeviceInfo? _device;
+    private DeviceRow? _device;
     private Dictionary<string, Reading> _latest = [];
     private DateTimeOffset? _lastReading;
     private TimeRange _range = TimeRange.Last24Hours;
@@ -133,8 +136,11 @@
     {
         try
         {
-            if (_device is null)
-                _device = (await Api.GetDevicesAsync(_cts.Token)).FirstOrDefault();
+            // The first configured device (else any device with history). Reloaded each time so status stays current.
+            var rows = await DeviceDirectory.LoadAsync(Api, _cts.Token);
+            _device = rows.FirstOrDefault(r => r.DeviceId == _device?.DeviceId && r.IsConfigured)
+                      ?? rows.FirstOrDefault(r => r.IsConfigured)
+                      ?? rows.FirstOrDefault();
 
             if (_device is not null)
             {

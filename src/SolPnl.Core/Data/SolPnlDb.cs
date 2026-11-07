@@ -17,6 +17,9 @@ public sealed class SolPnlDb(DbContextOptions<SolPnlDb> options) : DbContext(opt
     public DbSet<LatestReadingEntity> LatestReadings => Set<LatestReadingEntity>();
     public DbSet<RollupEntity> Rollups => Set<RollupEntity>();
     public DbSet<RollupStateEntity> RollupStates => Set<RollupStateEntity>();
+    public DbSet<DeviceConfigEntity> DeviceConfigs => Set<DeviceConfigEntity>();
+    public DbSet<PluginStateEntity> PluginStates => Set<PluginStateEntity>();
+    public DbSet<AppSettingEntity> AppSettings => Set<AppSettingEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -85,7 +88,63 @@ public sealed class SolPnlDb(DbContextOptions<SolPnlDb> options) : DbContext(opt
             e.Property(x => x.ResolutionMs).HasColumnName("resolution_ms").ValueGeneratedNever();
             e.Property(x => x.WatermarkMs).HasColumnName("watermark_ms");
         });
+
+        modelBuilder.Entity<DeviceConfigEntity>(e =>
+        {
+            e.ToTable("device_config");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.Name).HasColumnName("name").HasMaxLength(100);
+            e.Property(x => x.PluginId).HasColumnName("plugin_id").HasMaxLength(100);
+            e.Property(x => x.SettingsJson).HasColumnName("settings");
+            e.Property(x => x.DeviceKey).HasColumnName("device_key").HasMaxLength(200);
+            e.Property(x => x.CreatedAtMs).HasColumnName("created_at_ms");
+            e.HasIndex(x => x.DeviceKey).IsUnique();
+        });
+
+        modelBuilder.Entity<PluginStateEntity>(e =>
+        {
+            e.ToTable("plugin_state");
+            e.HasKey(x => x.PluginId);
+            e.Property(x => x.PluginId).HasColumnName("plugin_id").HasMaxLength(100).ValueGeneratedNever();
+            e.Property(x => x.Enabled).HasColumnName("enabled");
+        });
+
+        modelBuilder.Entity<AppSettingEntity>(e =>
+        {
+            e.ToTable("app_setting");
+            e.HasKey(x => x.Key);
+            e.Property(x => x.Key).HasColumnName("setting_key").HasMaxLength(100).ValueGeneratedNever();
+            e.Property(x => x.Value).HasColumnName("value");
+        });
     }
+}
+
+/// <summary>A device the user configured: which plugin type, and its settings (JSON object of strings).</summary>
+public sealed class DeviceConfigEntity
+{
+    public int Id { get; set; }
+    public required string Name { get; set; }
+    public required string PluginId { get; set; }
+    public required string SettingsJson { get; set; }
+
+    /// <summary>The device key its readings are stored under (from the plugin), unique across configured devices.</summary>
+    public required string DeviceKey { get; set; }
+    public long CreatedAtMs { get; set; }
+}
+
+/// <summary>Enabled/disabled state of a plugin. No row means enabled. Int (0/1) rather than bool for portability.</summary>
+public sealed class PluginStateEntity
+{
+    public required string PluginId { get; set; }
+    public int Enabled { get; set; }
+}
+
+/// <summary>Small application flags and values that live with the data (e.g. one-time migrations done).</summary>
+public sealed class AppSettingEntity
+{
+    public required string Key { get; set; }
+    public string? Value { get; set; }
 }
 
 /// <summary>Bucket sizes used for summaries.</summary>

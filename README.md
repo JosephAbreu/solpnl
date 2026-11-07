@@ -9,13 +9,14 @@ and alerting on the server, and depends on outside services only when a plugin y
 
 | Path | Purpose |
 |---|---|
-| `src/SolPnl.Contracts` | Shared models and plugin interfaces (`IDevicePlugin`, `INotificationPlugin`) |
-| `src/SolPnl.Core` | Plugin loading, polling, storage, alerting |
+| `src/SolPnl.Contracts` | Shared models and plugin interfaces (`IDevicePluginType`, `IDevicePlugin`, `INotificationPlugin`) |
+| `src/SolPnl.Core` | Storage, device registry, polling, summaries and retention |
 | `src/SolPnl.Api` | ASP.NET Core REST API (`/api/v1`); also hosts the web app |
 | `src/SolPnl.Ui` | Shared UI (Fluent UI Blazor): layout, pages, components and SVG charts; reusable by a future MAUI Blazor Hybrid app |
 | `src/SolPnl.Web` | Blazor WebAssembly PWA host for `SolPnl.Ui` |
 | `src/plugins/SolPnl.Plugin.SolarmanSrne` | Solarman V5 logger + SRNE-family inverters (e.g. Sungoldpower 10kW split phase) |
-| `src/plugins/SolPnl.Plugin.Notify.Smtp` | Email notifications |
+| `src/plugins/SolPnl.Plugin.Simulator` | Simulated inverter for development (registered only in the Development environment) |
+| `src/plugins/SolPnl.Plugin.Notify.Smtp` | Email notifications (not implemented yet) |
 | `tools/SolPnl.Probe` | CLI to verify local access to a Solarman logger and dump raw registers |
 
 ## Requirements
@@ -35,8 +36,12 @@ Then open http://localhost:5255 (the URL printed at startup) for the dashboard.
 A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net) and served by `SolPnl.Api`:
 - **Dashboard** – current solar output, load, grid voltage and temperature, plus solar/load and per-string charts.
 - **Devices** – every device with status and last reading; filterable (also from the header search).
+  **Add device** picks a device type and builds its settings form from the plugin, with **Test connection**.
 - **Device page** – Essentials, current values and charts (Overview tab), and every reported metric with a chart
-  for any of them (Metrics tab).
+  for any of them (Metrics tab). **Remove** stops polling and forgets the settings; history is kept unless you choose
+  to delete it too. Devices with history only can have it deleted.
+- **Plugins** – installed plugins with their device counts. **Disable** pauses all of a plugin's devices (settings and
+  history are kept); **Enable** resumes them.
 
 Charts are dependency-free SVG with a hover/keyboard crosshair tooltip, a table view, and light/dark themes. All assets
 are bundled locally (no CDNs).
@@ -61,15 +66,15 @@ and select **Save and start**. SolPnl creates the database schema, saves the cho
 ## Configuration
 Machine-specific settings live in `appsettings.Local.json` (git-ignored) in the **data directory**: `SOLPNL_DATA_DIR`
 if set (e.g. `/var/lib/solpnl`), otherwise the content root (`src/SolPnl.Api` during development). The setup wizard
-writes the `Db` section; device plugins are configured there too:
+writes the `Db` section:
 ```json
 {
-  "Db": { "DriverName": "sqlite", "ConnectionString": "Data Source=/var/lib/solpnl/solpnl.db" },
-  "Plugins": {
-    "SolarmanSrne": { "Host": "192.168.1.50", "LoggerSerial": 2712345678 }
-  }
+  "Db": { "DriverName": "sqlite", "ConnectionString": "Data Source=/var/lib/solpnl/solpnl.db" }
 }
 ```
+Devices and plugin on/off states are stored in the database and managed in the web UI. (An older
+`Plugins:SolarmanSrne` section, from before devices were managed in the UI, is imported once as a device named
+"Inverter" and then ignored.)
 `Db:DriverName` is `sqlite`, `mysql` (MySQL or MariaDB) or `mssql`. On Linux the file is written owner-only
 because it can contain a database password. To change storage later, edit or remove the `Db` section and restart
 (removing it brings the setup wizard back).
@@ -80,13 +85,22 @@ The schema is created and updated at startup from numbered SQL scripts in
 ## API
 | Endpoint | Description |
 |---|---|
-| `GET /api/v1/devices` | Known devices |
+| `GET /api/v1/devices` | Devices with stored data |
+| `DELETE /api/v1/devices/{deviceId}` | Delete the history of a device that is no longer configured |
+| `GET /api/v1/config/devices` | Configured devices (secret settings omitted) |
+| `POST /api/v1/config/devices` | Add a device: `{ name, pluginId, settings }` |
+| `POST /api/v1/config/devices/test` | Try a device's settings (connects and reads once, saves nothing) |
+| `DELETE /api/v1/config/devices/{id}[?deleteHistory=true]` | Remove a device |
+| `GET /api/v1/plugins` | Installed plugins, with settings schema and device counts |
+| `PUT /api/v1/plugins/{id}` | Enable or disable: `{ enabled }` |
 | `GET /api/v1/readings/latest[?device=]` | Latest value of every metric |
 | `GET /api/v1/readings/history?device=&metric=[&from=&to=&resolution=]` | Values over a range (default: last 24 h) |
 
 `resolution` is `raw`, `minute`, `hour` or `auto` (default). Auto picks raw for up to 2 hours, minute for up to
 3 days and hour beyond that, falling back to a coarser resolution when the finer one is no longer retained.
 Summary points carry the bucket's mean as `value`, plus `min` and `max`.
+
+The API has no authentication yet: anyone who can reach SolPnl on your network can change devices and plugins.
 
 ### Retention
 Raw readings are summarised per minute, and minutes per hour, by a background job (`Retention:MaintenanceIntervalSeconds`).

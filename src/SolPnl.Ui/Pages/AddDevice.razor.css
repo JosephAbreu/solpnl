@@ -1,0 +1,90 @@
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    max-width: 760px;
+    padding: 24px;
+}
+
+    .form section {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+h2 {
+    margin: 0 0 4px;
+    font-size: var(--fontSizeBase400);
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+.hint {
+    margin: 2px 0 0;
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+.options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--colorNeutralStroke1);
+    border-radius: var(--borderRadiusMedium);
+    cursor: pointer;
+}
+
+    .option:hover {
+        background: var(--colorNeutralBackground1Hover);
+    }
+
+    .option.selected {
+        border-color: var(--colorBrandStroke1);
+        background: var(--colorBrandBackground2);
+    }
+
+    .option input {
+        margin-top: 3px;
+        accent-color: var(--colorBrandBackground);
+    }
+
+    .option > span {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+.option-title {
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+.option-detail {
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground2);
+}
+
+.fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+    gap: 16px 20px;
+    margin-top: 8px;
+}
+
+    .fields > * {
+        min-width: 0;
+    }
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
