@@ -29,7 +29,13 @@
 
     <FluentLayoutItem Area="LayoutArea.Content" Class="shell-content">
         <ErrorBoundary @ref="_errorBoundary">
-            <ChildContent>@Body</ChildContent>
+            <ChildContent>
+                @* Pages render only once we know setup isn't needed, so they don't call an API that isn't ready. *@
+                @if (_ready)
+                {
+                    @Body
+                }
+            </ChildContent>
             <ErrorContent Context="ex">
                 <div class="page">
                     <FluentMessageBar Intent="MessageBarIntent.Error" Title="Something went wrong">@ex.Message</FluentMessageBar>
@@ -44,6 +50,7 @@
 @code {
     private string? _query;
     private ErrorBoundary? _errorBoundary;
+    private bool _ready;
 
     private static readonly RenderFragment SearchIcon =
         @<FluentIcon Value="@(new Icons.Regular.Size16.Search())" />;
@@ -58,12 +65,16 @@
         try
         {
             if ((await Api.GetSetupStatusAsync()).SetupRequired)
+            {
                 Nav.NavigateTo("setup", replace: true);
+                return;
+            }
         }
         catch (HttpRequestException)
         {
             // Pages show their own "can't reach SolPnl" message.
         }
+        _ready = true;
     }
 
     private void Search() =>

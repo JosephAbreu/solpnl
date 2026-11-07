@@ -3,6 +3,7 @@
 
 # Files that must keep LF everywhere (run on the Raspberry Pi / Linux)
 *.sh text eol=lf
+*.service text eol=lf
 
 # Files that must keep CRLF everywhere
 *.cmd text eol=crlf
