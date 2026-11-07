@@ -1,0 +1,40 @@
+[Unit]
+Description=SolPnl solar monitoring
+Documentation=https://github.com/JosephAbreu/solpnl
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=exec
+User=solpnl
+Group=solpnl
+WorkingDirectory=/opt/solpnl/current
+ExecStart=/opt/solpnl/current/SolPnl.Api
+Restart=always
+RestartSec=5
+
+# Listen on the LAN. Change the port here if 5255 is taken (then: systemctl daemon-reload && systemctl restart solpnl).
+Environment=ASPNETCORE_URLS=http://0.0.0.0:5255
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_NOLOGO=1
+# Settings file (appsettings.Local.json) and the default SQLite database live here; systemd creates it for the
+# solpnl user (StateDirectory).
+Environment=SOLPNL_DATA_DIR=/var/lib/solpnl
+StateDirectory=solpnl
+StateDirectoryMode=0750
+
+# Hardening: SolPnl can only write to its data directory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target
