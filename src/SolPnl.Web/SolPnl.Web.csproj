@@ -4,7 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!-- index.html uses plain asset URLs. Placeholder processing (fingerprinted URLs + import map) is skipped when
+         this client is published through SolPnl.Api, so a release would serve an unprocessed page that never loads. -->
+    <OverrideHtmlAssetPlaceholders>false</OverrideHtmlAssetPlaceholders>
     <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
   </PropertyGroup>
 

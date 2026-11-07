@@ -11,6 +11,12 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
   </ItemGroup>
 
+  <!-- Machine-specific settings and local data stay on the machine: never copy them into a published release. -->
+  <ItemGroup>
+    <Content Update="appsettings.Local.json;appsettings.Development.json" CopyToPublishDirectory="Never" />
+    <None Update="*.db;*.db-shm;*.db-wal" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\SolPnl.Core\SolPnl.Core.csproj" />
     <ProjectReference Include="..\SolPnl.Web\SolPnl.Web.csproj" />

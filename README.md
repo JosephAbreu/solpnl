@@ -93,6 +93,31 @@ Raw readings are summarised per minute, and minutes per hour, by a background jo
 Defaults: raw 7 days, minute summaries 90 days, hourly summaries forever (`Retention:RawDays`, `MinuteDays`,
 `HourDays`; 0 = keep forever). Data is only deleted after it has been summarised.
 
+## Deploying to a Raspberry Pi
+SolPnl ships as a self-contained `linux-arm64` build (no .NET needed on the Pi) and runs as a systemd service.
+Tested on a Raspberry Pi 4 with 64-bit Raspberry Pi OS (Debian 13).
+
+**Once:** set up SSH key login from your PC (deploys can't type passwords):
+```powershell
+ssh-keygen -t ed25519
+type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh administrator@server.local "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+```
+
+**First deploy** installs the service (asks for your sudo password once), then deploys:
+```powershell
+./deploy/deploy.ps1 -Install
+```
+This creates a `solpnl` service user, `/opt/solpnl/releases/` (owned by your user) and `/var/lib/solpnl/` (data:
+`appsettings.Local.json`, `solpnl.db`), installs `solpnl.service`, and allows your user to start/stop/restart the
+service without a password. SolPnl then starts in setup mode; open `http://server.local:5255/setup` and get the setup
+code with `ssh administrator@server.local "journalctl -u solpnl -n 50 --no-pager | grep -o 'setup code [A-Z0-9-]*'"`.
+
+**Updates:** `./deploy/deploy.ps1` (builds, uploads a new release, switches to it, restarts, checks health; keeps the
+last 3 releases). **Roll back:** `./deploy/deploy.ps1 -Rollback`. Options: `-Target user@host`, `-Port`.
+
+**On the Pi:** `systemctl status solpnl`, `journalctl -u solpnl -f`. The port is set in
+`/etc/systemd/system/solpnl.service` (`ASPNETCORE_URLS`, default 5255).
+
 ## Probing a Solarman WiFi logger
 You need the logger's IP address (from your router) and its serial number (sticker on the stick).
 ```sh
