@@ -16,8 +16,29 @@ public sealed record Reading(
     string Unit,
     DateTimeOffset Timestamp);
 
-/// <summary>One point in a metric's history.</summary>
-public sealed record HistoryPoint(DateTimeOffset Timestamp, double Value);
+public enum HistoryResolution
+{
+    /// <summary>Every stored poll.</summary>
+    Raw,
+    /// <summary>One point per minute (mean, with min/max).</summary>
+    Minute,
+    /// <summary>One point per hour (mean, with min/max).</summary>
+    Hour,
+}
+
+/// <summary>
+/// One point in a metric's history. For <see cref="HistoryResolution.Raw"/>, <see cref="Value"/> is the reading and
+/// Min/Max are null. For summaries, <see cref="Timestamp"/> is the bucket start, <see cref="Value"/> is the mean,
+/// and Min/Max are the extremes within the bucket.
+/// </summary>
+public sealed record HistoryPoint(DateTimeOffset Timestamp, double Value, double? Min = null, double? Max = null);
+
+public sealed record HistoryResult(
+    string DeviceId,
+    string Metric,
+    string? Unit,
+    HistoryResolution Resolution,
+    IReadOnlyList<HistoryPoint> Points);
 
 public enum AlertSeverity
 {

@@ -57,7 +57,16 @@ The schema is created and updated at startup from numbered SQL scripts in
 |---|---|
 | `GET /api/v1/devices` | Known devices |
 | `GET /api/v1/readings/latest[?device=]` | Latest value of every metric |
-| `GET /api/v1/readings/history?device=&metric=[&from=&to=]` | Raw values (default: last 24 h) |
+| `GET /api/v1/readings/history?device=&metric=[&from=&to=&resolution=]` | Values over a range (default: last 24 h) |
+
+`resolution` is `raw`, `minute`, `hour` or `auto` (default). Auto picks raw for up to 2 hours, minute for up to
+3 days and hour beyond that, falling back to a coarser resolution when the finer one is no longer retained.
+Summary points carry the bucket's mean as `value`, plus `min` and `max`.
+
+### Retention
+Raw readings are summarised per minute, and minutes per hour, by a background job (`Retention:MaintenanceIntervalSeconds`).
+Defaults: raw 7 days, minute summaries 90 days, hourly summaries forever (`Retention:RawDays`, `MinuteDays`,
+`HourDays`; 0 = keep forever). Data is only deleted after it has been summarised.
 
 ## Probing a Solarman WiFi logger
 You need the logger's IP address (from your router) and its serial number (sticker on the stick).

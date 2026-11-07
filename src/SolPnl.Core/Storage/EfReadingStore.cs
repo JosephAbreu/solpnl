@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using SolPnl.Contracts.Models;
 using SolPnl.Core.Data;
 
@@ -9,7 +10,10 @@ namespace SolPnl.Core.Storage;
 /// EF Core implementation of <see cref="IReadingStore"/>. Uses only portable LINQ (no provider-specific SQL),
 /// so it behaves the same on SQLite, MySQL/MariaDB and SQL Server.
 /// </summary>
-public sealed class EfReadingStore(IDbContextFactory<SolPnlDb> dbFactory) : IReadingStore
+public sealed class EfReadingStore(
+    IDbContextFactory<SolPnlDb> dbFactory,
+    IOptions<RetentionOptions> retention,
+    TimeProvider time) : IReadingStore
 {
     // Device and metric ids never change once created, so cache them to avoid lookups on every poll.
     private readonly ConcurrentDictionary<string, int> _deviceIds = new(StringComparer.Ordinal);
@@ -101,23 +105,69 @@ public sealed class EfReadingStore(IDbContextFactory<SolPnlDb> dbFactory) : IRea
             .ToList();
     }
 
-    public async Task<IReadOnlyList<HistoryPoint>> GetHistoryAsync(
-        string deviceId, string metric, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+    /// <summary>Longest range served at raw resolution (~720 points at a 10 s poll interval).</summary>
+    public static readonly TimeSpan MaxRawSpan = TimeSpan.FromHours(2);
+
+    /// <summary>Longest range served at minute resolution (~4,300 points).</summary>
+    public static readonly TimeSpan MaxMinuteSpan = TimeSpan.FromDays(3);
+
+    public static HistoryResolution ChooseResolution(
+        DateTimeOffset from, DateTimeOffset to, DateTimeOffset now, RetentionOptions retention)
     {
+        var span = to - from;
+        bool Retained(int days) => days <= 0 || from >= now.AddDays(-days);
+
+        if (span <= MaxRawSpan && Retained(retention.RawDays)) return HistoryResolution.Raw;
+        if (span <= MaxMinuteSpan && Retained(retention.MinuteDays)) return HistoryResolution.Minute;
+        return HistoryResolution.Hour;
+    }
+
+    public async Task<HistoryResult> GetHistoryAsync(
+        string deviceId, string metric, DateTimeOffset from, DateTimeOffset to,
+        HistoryResolution? resolution = null, CancellationToken cancellationToken = default)
+    {
+        var chosen = resolution ?? ChooseResolution(from, to, time.GetUtcNow(), retention.Value);
         var fromMs = from.ToUnixTimeMilliseconds();
         var toMs = to.ToUnixTimeMilliseconds();
 
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-        var rows = await (
-                from r in db.Readings.AsNoTracking()
-                join d in db.Devices on r.DeviceId equals d.Id
-                join m in db.Metrics on r.MetricId equals m.Id
-                where d.DeviceKey == deviceId && m.Name == metric && r.TimestampMs >= fromMs && r.TimestampMs <= toMs
-                orderby r.TimestampMs
-                select new { r.TimestampMs, r.Value })
-            .ToListAsync(cancellationToken);
+        var device = await db.Devices.AsNoTracking().Where(d => d.DeviceKey == deviceId).Select(d => (int?)d.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+        var metricRow = await db.Metrics.AsNoTracking().Where(m => m.Name == metric).Select(m => new { m.Id, m.Unit })
+            .SingleOrDefaultAsync(cancellationToken);
 
-        return rows.Select(r => new HistoryPoint(DateTimeOffset.FromUnixTimeMilliseconds(r.TimestampMs), r.Value)).ToList();
+        if (device is null || metricRow is null)
+            return new HistoryResult(deviceId, metric, metricRow?.Unit, chosen, []);
+
+        var deviceRowId = device.Value;
+        List<HistoryPoint> points;
+        if (chosen == HistoryResolution.Raw)
+        {
+            var rows = await db.Readings.AsNoTracking()
+                .Where(r => r.DeviceId == deviceRowId && r.MetricId == metricRow.Id && r.TimestampMs >= fromMs && r.TimestampMs <= toMs)
+                .OrderBy(r => r.TimestampMs)
+                .Select(r => new { r.TimestampMs, r.Value })
+                .ToListAsync(cancellationToken);
+            points = rows.Select(r => new HistoryPoint(DateTimeOffset.FromUnixTimeMilliseconds(r.TimestampMs), r.Value)).ToList();
+        }
+        else
+        {
+            var bucketMs = chosen == HistoryResolution.Minute ? Resolutions.MinuteMs : Resolutions.HourMs;
+            var firstBucket = RollupMaintenance.Floor(fromMs, bucketMs); // include the bucket containing 'from'
+            var rows = await db.Rollups.AsNoTracking()
+                .Where(r => r.DeviceId == deviceRowId && r.MetricId == metricRow.Id && r.ResolutionMs == bucketMs
+                            && r.BucketMs >= firstBucket && r.BucketMs <= toMs)
+                .OrderBy(r => r.BucketMs)
+                .Select(r => new { r.BucketMs, r.ValueSum, r.ValueMin, r.ValueMax, r.SampleCount })
+                .ToListAsync(cancellationToken);
+            points = rows.Select(r => new HistoryPoint(
+                DateTimeOffset.FromUnixTimeMilliseconds(r.BucketMs),
+                Math.Round(r.ValueSum / r.SampleCount, 3),
+                r.ValueMin,
+                r.ValueMax)).ToList();
+        }
+
+        return new HistoryResult(deviceId, metric, metricRow.Unit, chosen, points);
     }
 
     private async Task<int> GetOrCreateDeviceAsync(SolPnlDb db, DeviceInfo device, CancellationToken ct)
