@@ -3,7 +3,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SolPnl.Contracts.Models;
+using SolPnl.Contracts.Plugins;
 using SolPnl.Core.Data;
+using SolPnl.Core.Devices;
 using SolPnl.Core.Setup;
 using SolPnl.Core.Storage;
 using Testcontainers.MariaDb;
@@ -48,6 +50,143 @@ public abstract class StorageTests : IAsyncLifetime
     private EfReadingStore Store() => new(_factory, Options.Create(_retention), _time);
     private RollupMaintenance Maintenance() =>
         new(_factory, Options.Create(_retention), _time, NullLogger<RollupMaintenance>.Instance);
+
+    private DeviceRegistry Registry(params IDevicePluginType[] types) =>
+        new(_factory, types, Store(), NullLogger<DeviceRegistry>.Instance);
+
+    private static IConfiguration EmptyConfig() => new ConfigurationBuilder().Build();
+
+    [Fact]
+    public async Task Registry_AddsRemovesDevices_AndPluginToggleStartsAndStopsPolling()
+    {
+        await Migrations().MigrateAsync();
+        var fake = new FakeDevicePluginType();
+        await using var registry = Registry(fake);
+        await registry.InitializeAsync(EmptyConfig());
+        Assert.Empty(registry.ActiveDevices);
+
+        // Add: unknown keys dropped, secrets never returned, polling starts.
+        var garage = await registry.AddAsync(new AddDeviceRequest(" Garage ", "fake",
+            new() { ["id"] = "a", ["secret"] = "s3cret", ["unknown"] = "x" }));
+        Assert.Equal("Garage", garage.Name);
+        Assert.Equal("fake-a", garage.DeviceId);
+        Assert.Null(garage.Settings["secret"]);
+        Assert.False(garage.Settings.ContainsKey("unknown"));
+        Assert.Equal("fake-a", Assert.Single(registry.ActiveDevices).DeviceKey);
+
+        // Invalid and duplicate devices are rejected.
+        await Assert.ThrowsAsync<ArgumentException>(() => registry.AddAsync(new AddDeviceRequest("X", "fake", new())));
+        await Assert.ThrowsAsync<ArgumentException>(() => registry.AddAsync(new AddDeviceRequest("", "fake", new() { ["id"] = "b" })));
+        await Assert.ThrowsAsync<ArgumentException>(() => registry.AddAsync(new AddDeviceRequest("X", "nope", new())));
+        var dup = await Assert.ThrowsAsync<DeviceConfigurationException>(() =>
+            registry.AddAsync(new AddDeviceRequest("Again", "fake", new() { ["id"] = "a" })));
+        Assert.Contains("Garage", dup.Message);
+
+        // Disabling the plugin stops polling (instance disposed) but keeps the configuration.
+        var running = (FakeDevice)registry.ActiveDevices[0].Plugin;
+        var disabled = await registry.SetPluginEnabledAsync("fake", false);
+        Assert.False(disabled.Enabled);
+        Assert.Equal(1, disabled.DeviceCount);
+        Assert.Empty(registry.ActiveDevices);
+        Assert.True(running.Disposed);
+        await Assert.ThrowsAsync<DeviceConfigurationException>(() =>
+            registry.AddAsync(new AddDeviceRequest("Shed", "fake", new() { ["id"] = "b" })));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => registry.SetPluginEnabledAsync("nope", true));
+
+        // State survives a restart (a new registry over the same database).
+        await using (var restarted = Registry(new FakeDevicePluginType()))
+        {
+            await restarted.InitializeAsync(EmptyConfig());
+            Assert.Empty(restarted.ActiveDevices);
+        }
+
+        await registry.SetPluginEnabledAsync("fake", true);
+        Assert.Single(registry.ActiveDevices);
+
+        // Remove keeping history, then remove another device deleting its history.
+        var store = Store();
+        await store.SaveAsync(new DeviceInfo("fake-a", "Test", "Fake", null, null), [new Reading("fake-a", Metrics.PvPower, 1, "W", T0)]);
+        Assert.True(await registry.RemoveAsync(garage.Id, deleteHistory: false));
+        Assert.Empty(registry.ActiveDevices);
+        Assert.Contains(await store.GetDevicesAsync(), d => d.DeviceId == "fake-a");
+
+        var shed = await registry.AddAsync(new AddDeviceRequest("Shed", "fake", new() { ["id"] = "b" }));
+        await store.SaveAsync(new DeviceInfo("fake-b", "Test", "Fake", null, null), [new Reading("fake-b", Metrics.PvPower, 1, "W", T0)]);
+        Assert.True(await registry.RemoveAsync(shed.Id, deleteHistory: true));
+        Assert.DoesNotContain(await store.GetDevicesAsync(), d => d.DeviceId == "fake-b");
+        Assert.Empty(await store.GetLatestAsync("fake-b"));
+
+        Assert.False(await registry.RemoveAsync(12345, deleteHistory: false));
+
+        // A device whose history was kept can be added back and keeps recording under the same key.
+        await registry.AddAsync(new AddDeviceRequest("Garage", "fake", new() { ["id"] = "a" }));
+        await store.SaveAsync(new DeviceInfo("fake-a", "Test", "Fake", null, null), [new Reading("fake-a", Metrics.PvPower, 2, "W", T0.AddSeconds(10))]);
+        Assert.Equal(2, Assert.Single(await store.GetLatestAsync("fake-a")).Value);
+    }
+
+    [Fact]
+    public async Task Registry_ImportsLegacyPluginConfigOnlyOnce()
+    {
+        await Migrations().MigrateAsync();
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Plugins:SolarmanSrne:Host"] = "192.168.4.31",
+            ["Plugins:SolarmanSrne:LoggerSerial"] = "3589272256",
+        }).Build();
+
+        await using (var registry = Registry(new SrneLikeType()))
+        {
+            await registry.InitializeAsync(config);
+            var imported = Assert.Single(await registry.GetDevicesAsync());
+            Assert.Equal("Inverter", imported.Name);
+            Assert.Equal("solarman-3589272256", imported.DeviceId);
+            Assert.Equal("192.168.4.31", imported.Settings["host"]);
+            Assert.Single(registry.ActiveDevices);
+
+            // The user removes it in the UI...
+            Assert.True(await registry.RemoveAsync(imported.Id, deleteHistory: false));
+        }
+
+        // ...and it must not come back from the old config section on the next start.
+        await using (var registry = Registry(new SrneLikeType()))
+        {
+            await registry.InitializeAsync(config);
+            Assert.Empty(await registry.GetDevicesAsync());
+        }
+    }
+
+    [Fact]
+    public async Task Registry_TestReportsReachableAndUnreachableDevices()
+    {
+        await Migrations().MigrateAsync();
+        await using var registry = Registry(new FakeDevicePluginType());
+
+        var ok = await registry.TestAsync("fake", new Dictionary<string, string?> { ["id"] = "x" });
+        Assert.True(ok.Ok, ok.Message);
+        Assert.Equal("fake-x", ok.DeviceId);
+        Assert.Equal(1, ok.ReadingCount);
+
+        var unreachable = await registry.TestAsync("fake", new Dictionary<string, string?> { ["id"] = "x", ["fail"] = "true" });
+        Assert.False(unreachable.Ok);
+        Assert.Contains("unreachable", unreachable.Message);
+
+        Assert.False((await registry.TestAsync("fake", new Dictionary<string, string?>())).Ok);
+        Assert.False((await registry.TestAsync("nope", new Dictionary<string, string?> { ["id"] = "x" })).Ok);
+        Assert.Empty(await registry.GetDevicesAsync()); // testing never saves
+    }
+
+    /// <summary>Stands in for the SRNE plugin type (same id and setting keys) without network access.</summary>
+    private sealed class SrneLikeType : IDevicePluginType
+    {
+        public string Id => "solarman-srne";
+        public string DisplayName => "SRNE-like";
+        public string Description => "Test";
+        public IReadOnlyList<SettingField> Settings { get; } =
+            [new("host", "Host"), new("loggerSerial", "Serial", SettingKind.Number), new("port", "Port", Required: false), new("slaveId", "Slave", Required: false)];
+
+        public IDevicePlugin Create(IReadOnlyDictionary<string, string?> settings) =>
+            new FakeDevice(Id, $"solarman-{settings["loggerSerial"]}", fail: false);
+    }
 
     [Fact]
     public async Task SetupWizard_TestsCreatesSchemaAndSavesSettings()

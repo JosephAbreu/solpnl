@@ -1,14 +1,24 @@
-@* Device status: always icon + label, never color alone. *@
+@* Device status: always icon + label, never color alone. Only Online/Offline use (reserved) status colors. *@
 
-@if (Online)
+@switch (State)
 {
-    <span class="status good"><FluentIcon Value="@(new Icons.Filled.Size16.CheckmarkCircle())" CustomColor="var(--status-good)" Color="Color.Custom" />Online</span>
-}
-else
-{
-    <span class="status critical"><FluentIcon Value="@(new Icons.Filled.Size16.ErrorCircle())" CustomColor="var(--status-critical)" Color="Color.Custom" />Offline</span>
+    case DeviceState.Online:
+        <span class="status"><FluentIcon Value="@(new Icons.Filled.Size16.CheckmarkCircle())" CustomColor="var(--status-good)" Color="Color.Custom" />Online</span>
+        break;
+    case DeviceState.Offline:
+        <span class="status"><FluentIcon Value="@(new Icons.Filled.Size16.ErrorCircle())" CustomColor="var(--status-critical)" Color="Color.Custom" />Offline</span>
+        break;
+    case DeviceState.Waiting:
+        <span class="status muted"><FluentIcon Value="@(new Icons.Regular.Size16.Clock())" Color="Color.Custom" CustomColor="currentColor" />Waiting for data</span>
+        break;
+    case DeviceState.Paused:
+        <span class="status muted"><FluentIcon Value="@(new Icons.Regular.Size16.PauseCircle())" Color="Color.Custom" CustomColor="currentColor" />Paused</span>
+        break;
+    default:
+        <span class="status muted"><FluentIcon Value="@(new Icons.Regular.Size16.History())" Color="Color.Custom" CustomColor="currentColor" />History only</span>
+        break;
 }
 
 @code {
-    [Parameter, EditorRequired] public bool Online { get; set; }
+    [Parameter, EditorRequired] public DeviceState State { get; set; }
 }

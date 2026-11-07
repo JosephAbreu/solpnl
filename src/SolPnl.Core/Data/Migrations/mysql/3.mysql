@@ -1,0 +1,23 @@
+-- 3: configured devices, plugin enable/disable, app settings (MySQL and MariaDB)
+create table if not exists device_config (
+    id int not null auto_increment,
+    name varchar(100) not null,
+    plugin_id varchar(100) not null,
+    settings text not null,
+    device_key varchar(200) not null,
+    created_at_ms bigint not null,
+    primary key (id),
+    unique key ux_device_config_key (device_key)
+) engine = InnoDB;
+
+create table if not exists plugin_state (
+    plugin_id varchar(100) not null,
+    enabled int not null,
+    primary key (plugin_id)
+) engine = InnoDB;
+
+create table if not exists app_setting (
+    setting_key varchar(100) not null,
+    value text null,
+    primary key (setting_key)
+) engine = InnoDB;

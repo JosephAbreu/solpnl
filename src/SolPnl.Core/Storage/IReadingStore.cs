@@ -10,6 +10,9 @@ public interface IReadingStore
 
     Task<IReadOnlyList<DeviceInfo>> GetDevicesAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Deletes a device and all its readings, latest values and summaries. Returns false if it had none.</summary>
+    Task<bool> DeleteDeviceAsync(string deviceId, CancellationToken cancellationToken = default);
+
     /// <summary>Latest value of every metric, optionally for a single device.</summary>
     Task<IReadOnlyList<Reading>> GetLatestAsync(string? deviceId = null, CancellationToken cancellationToken = default);
 
