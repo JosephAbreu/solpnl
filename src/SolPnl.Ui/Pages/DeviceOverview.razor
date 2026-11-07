@@ -83,6 +83,10 @@
                     <div class="tile-grid">
                         <StatTile Label="Solar power" Value="@Value(Metrics.PvPower)" />
                         <StatTile Label="Load" Value="@Value(Metrics.LoadPower)" />
+                        @if (Has(Metrics.GridPower))
+                        {
+                            <StatTile Label="Grid" Value="@Value(Metrics.GridPower)" />
+                        }
                         <StatTile Label="Grid voltage" Value="@PhasePair(Metrics.GridVoltage)" />
                         <StatTile Label="Inverter temperature" Value="@Value(Metrics.InverterTemperature)" />
                     </div>
@@ -90,8 +94,8 @@
                     <TimeRangeBar Value="_range" ValueChanged="SetRange" />
 
                     <div class="card-grid">
-                        <MetricChartCard Title="Solar and load" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh"
-                                         Series="@([new(Metrics.PvPower, "Solar", SeriesColors.Slot2), new(Metrics.LoadPower, "Load", SeriesColors.Slot1)])" />
+                        <MetricChartCard Title="Solar, load and grid" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh"
+                                         Series="@([new(Metrics.PvPower, "Solar", SeriesColors.Slot2), new(Metrics.LoadPower, "Load", SeriesColors.Slot1), new(Metrics.GridPower, "Grid", SeriesColors.Slot3)])" />
                         <MetricChartCard Title="Solar by PV string" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh"
                                          Series="@([new(Metrics.ForString(Metrics.PvPower, 1), "String 1", SeriesColors.Slot1), new(Metrics.ForString(Metrics.PvPower, 2), "String 2", SeriesColors.Slot2)])" />
                         <MetricChartCard Title="Grid voltage" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh" ZeroBaseline="false"

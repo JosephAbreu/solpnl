@@ -18,14 +18,18 @@ public static class MetricFormat
         [Metrics.LoadPower] = "Load",
         [Metrics.LoadApparentPower] = "Load (apparent)",
         [Metrics.LoadCurrent] = "Load current",
+        [Metrics.LoadPercent] = "Load (% of rated)",
         [Metrics.GridPower] = "Grid power",
         [Metrics.GridVoltage] = "Grid voltage",
+        [Metrics.GridCurrent] = "Grid current",
+        [Metrics.GridApparentPower] = "Grid (apparent)",
         [Metrics.GridFrequency] = "Grid frequency",
         [Metrics.InverterVoltage] = "Inverter output voltage",
         [Metrics.InverterCurrent] = "Inverter output current",
         [Metrics.InverterFrequency] = "Inverter output frequency",
         [Metrics.InverterTemperature] = "Inverter temperature",
         ["vendor.srne.state"] = "Operating state (SRNE)",
+        ["vendor.srne.dc_bus_voltage"] = "DC bus voltage (SRNE)",
     };
 
     /// <summary>"pv.power.1" => "Solar power · string 1", "load.power.l2" => "Load · L2".</summary>

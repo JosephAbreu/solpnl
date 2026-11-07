@@ -69,6 +69,17 @@ public class SrneRegisterMapTests
     [InlineData("inverter.temperature.1", 40.0, "°C")]
     [InlineData("inverter.temperature", 40.0, "°C")]
     [InlineData("vendor.srne.state", 2, "")]
+    [InlineData("grid.current.l1", 1.3, "A")]
+    [InlineData("grid.current.l2", 2.1, "A")]
+    [InlineData("grid.power.l1", 63, "W")]
+    [InlineData("grid.power.l2", 223, "W")]
+    [InlineData("grid.power", 286, "W")]
+    [InlineData("grid.apparent_power.l1", 133, "VA")]
+    [InlineData("grid.apparent_power.l2", 267, "VA")]
+    [InlineData("grid.apparent_power", 400, "VA")]
+    [InlineData("load.percent.l1", 12, "%")]
+    [InlineData("load.percent.l2", 15, "%")]
+    [InlineData("vendor.srne.dc_bus_voltage", 519.7, "V")]
     public void Decode_CapturedLiveValues(string metric, double expected, string unit)
     {
         var readings = DecodeCaptured();
@@ -77,6 +88,56 @@ public class SrneRegisterMapTests
         Assert.Equal(unit, reading.Unit);
         Assert.Equal("dev", reading.DeviceId);
         Assert.Equal(Now, reading.Timestamp);
+    }
+
+    [Fact]
+    public void Decode_DaytimeEnergyBalance_Holds()
+    {
+        // Solar + grid must cover the load plus a plausible inverter loss (here ~8.5%).
+        var r = DecodeCaptured();
+        var supply = r[Metrics.PvPower].Value + r[Metrics.GridPower].Value;
+        var load = r[Metrics.LoadPower].Value;
+        Assert.InRange(supply - load, 0, load * 0.15);
+    }
+
+    // Captured from the same inverter at night (2026-11-07 17:36 local): no solar, grid passing straight through.
+    private static readonly ushort[] NightBlock0200 =
+    [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6667, 1809, 9245, 0,
+        2, 0, 3444, 1238, 6, 6000, 1238, 0, 0, 3, 0, 8, 42, 0, 0, 0,
+    ];
+
+    private static readonly ushort[] NightBlock0220 =
+    [
+        262, 291, 265, 1200, 0, 0, 0, 0, 1725, 1718, 1237, 0, 1237, 0, 0, 0,
+        30, 0, 304, 0, 375, 0, 7, 0, 31, 0, 65530, 319, 0, 61, 383, 0,
+    ];
+
+    [Fact]
+    public void Decode_NightCapture_GridCarriesTheLoad()
+    {
+        var registers = Captured();
+        for (var i = 0; i < 18; i++) registers[(ushort)(0x0100 + i)] = 0; // no solar
+        for (var i = 0; i < 32; i++)
+        {
+            registers[(ushort)(0x0200 + i)] = NightBlock0200[i];
+            registers[(ushort)(0x0220 + i)] = NightBlock0220[i];
+        }
+
+        var r = SrneRegisterMap.Decode(registers, "dev", Now).ToDictionary(x => x.Metric);
+        Assert.Equal(-6, r["grid.power.l1"].Value);          // signed: near-zero noise
+        Assert.Equal(319, r["grid.power.l2"].Value);
+        Assert.Equal(313, r[Metrics.GridPower].Value);
+        Assert.Equal(3.1, r["grid.current.l2"].Value, 3);
+        Assert.Equal(383, r["grid.apparent_power.l2"].Value);
+        Assert.Equal(0, r[Metrics.PvPower].Value);
+        Assert.Equal(0, r[Metrics.InverterFrequency].Value);  // inverter idle, grid passing through
+
+        // Grid covers the whole load plus the inverter's small pass-through overhead.
+        Assert.InRange(r[Metrics.GridPower].Value - r[Metrics.LoadPower].Value, 0, 60);
+
+        // L2 apparent power equals current x voltage.
+        Assert.Equal(r["grid.current.l2"].Value * r["grid.voltage.l2"].Value, r["grid.apparent_power.l2"].Value, 0.5);
     }
 
     [Fact]
