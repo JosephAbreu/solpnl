@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/src/plugins/">
     <Project Path="src/plugins/SolPnl.Plugin.Notify.Smtp/SolPnl.Plugin.Notify.Smtp.csproj" />
+    <Project Path="src/plugins/SolPnl.Plugin.Simulator/SolPnl.Plugin.Simulator.csproj" />
     <Project Path="src/plugins/SolPnl.Plugin.SolarmanSrne/SolPnl.Plugin.SolarmanSrne.csproj" />
   </Folder>
   <Folder Name="/tests/">

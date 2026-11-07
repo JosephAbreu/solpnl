@@ -6,15 +6,16 @@
 <PageTitle>Devices · SolPnl</PageTitle>
 
 <div class="page">
-    <PageHeader Title="Devices" Subtitle="Hardware reporting to SolPnl" Icon="@(new Icons.Regular.Size24.Flash())"
+    <PageHeader Title="Devices" Subtitle="Hardware monitored by SolPnl" Icon="@(new Icons.Regular.Size24.Flash())"
                 Breadcrumbs="@([("Home", ""), ("Devices", null)])">
         <Commands>
+            <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.Add())" OnClick="@(() => Nav.NavigateTo("devices/add"))">Add device</FluentButton>
             <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowClockwise())" OnClick="LoadAsync">Refresh</FluentButton>
         </Commands>
     </PageHeader>
 
     <div class="filter-row">
-        <FluentTextInput Value="@Query" ValueChanged="SetQuery" Placeholder="Filter by name, vendor, model or serial" aria-label="Filter devices"
+        <FluentTextInput Value="@Query" ValueChanged="SetQuery" Placeholder="Filter by name, ID, plugin, model or serial" aria-label="Filter devices"
                          Immediate="true" ImmediateDelay="250" Width="360px" />
         <span class="count">@Showing.Count of @_rows.Count</span>
     </div>
@@ -24,40 +25,50 @@
         <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Can't reach the SolPnl service">@_error</FluentMessageBar>
     }
 
-    <div class="panel grid-panel">
-        <FluentDataGrid Items="@Showing.AsQueryable()" TGridItem="Row" GridTemplateColumns="2fr 1fr 1.5fr 1fr 1fr 1fr">
-            <TemplateColumn Title="Name" Sortable="true" SortBy="@(GridSort<Row>.ByAscending(r => r.Device.DeviceId))">
-                <a href="@($"devices/{Uri.EscapeDataString(context.Device.DeviceId)}")">@context.Device.DeviceId</a>
-            </TemplateColumn>
-            <PropertyColumn Title="Vendor" Property="@(r => r.Device.Vendor)" Sortable="true" />
-            <PropertyColumn Title="Model" Property="@(r => r.Device.Model)" Sortable="true" />
-            <PropertyColumn Title="Serial number" Property="@(r => r.Device.SerialNumber)" Sortable="true" />
-            <TemplateColumn Title="Status">
-                <StatusBadge Online="@DeviceStatus.IsOnline(context.LastReading, DateTimeOffset.UtcNow)" />
-            </TemplateColumn>
-            <TemplateColumn Title="Last reading">
-                @(context.LastReading is { } t ? MetricFormat.Ago(t, DateTimeOffset.UtcNow) : "never")
-            </TemplateColumn>
-        </FluentDataGrid>
+    @if (_loaded && _rows.Count == 0 && _error is null)
+    {
+        <section class="panel empty-state">
+            <FluentIcon Value="@(new Icons.Regular.Size32.Flash())" Color="Color.Custom" CustomColor="var(--colorNeutralForeground3)" />
+            <h2>No devices yet</h2>
+            <p>Add your inverter or other hardware so SolPnl can start recording.</p>
+            <FluentButton Appearance="ButtonAppearance.Primary" IconStart="@(new Icons.Regular.Size20.Add())" OnClick="@(() => Nav.NavigateTo("devices/add"))">Add device</FluentButton>
+        </section>
+    }
+    else
+    {
+        <div class="panel grid-panel">
+            <FluentDataGrid Items="@Showing.AsQueryable()" TGridItem="DeviceRow" GridTemplateColumns="1.6fr 1.6fr 1.6fr 1.6fr 1.4fr 1fr">
+                <TemplateColumn Title="Name" Sortable="true" SortBy="@(GridSort<DeviceRow>.ByAscending(r => r.Name))">
+                    <a href="@($"devices/{Uri.EscapeDataString(context.DeviceId)}")">@context.Name</a>
+                </TemplateColumn>
+                <PropertyColumn Title="Device ID" Property="@(r => r.DeviceId)" Sortable="true" />
+                <TemplateColumn Title="Plugin" Sortable="true" SortBy="@(GridSort<DeviceRow>.ByAscending(r => r.PluginName))">@context.PluginName</TemplateColumn>
+                <TemplateColumn Title="Model">@(context.Info is { } i ? $"{i.Vendor} {i.Model}" : "–")</TemplateColumn>
+                <TemplateColumn Title="Status"><StatusBadge State="@context.State(DateTimeOffset.UtcNow)" /></TemplateColumn>
+                <TemplateColumn Title="Last reading">
+                    @(context.LastReading is { } t ? MetricFormat.Ago(t, DateTimeOffset.UtcNow) : "never")
+                </TemplateColumn>
+            </FluentDataGrid>
 
-        @if (_loaded && Showing.Count == 0)
-        {
-            <div class="none">@(_rows.Count == 0 ? "No devices are reporting yet." : "No devices match the filter.")</div>
-        }
-    </div>
+            @if (_loaded && Showing.Count == 0)
+            {
+                <div class="none">No devices match the filter.</div>
+            }
+        </div>
+    }
 </div>
 
 @code {
     [SupplyParameterFromQuery(Name = "q")] public string? Query { get; set; }
 
-    private List<Row> _rows = [];
+    private List<DeviceRow> _rows = [];
     private bool _loaded;
     private string? _error;
     private readonly CancellationTokenSource _cts = new();
 
-    private List<Row> Showing => string.IsNullOrWhiteSpace(Query)
+    private List<DeviceRow> Showing => string.IsNullOrWhiteSpace(Query)
         ? _rows
-        : _rows.Where(r => Matches(r.Device, Query.Trim())).ToList();
+        : _rows.Where(r => Matches(r, Query.Trim())).ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -88,10 +99,7 @@
     {
         try
         {
-            var devices = await Api.GetDevicesAsync(_cts.Token);
-            var latest = await Api.GetLatestAsync(null, _cts.Token);
-            var last = latest.GroupBy(r => r.DeviceId).ToDictionary(g => g.Key, g => g.Max(r => r.Timestamp));
-            _rows = devices.Select(d => new Row(d, last.TryGetValue(d.DeviceId, out var t) ? t : null)).ToList();
+            _rows = await DeviceDirectory.LoadAsync(Api, _cts.Token);
             _error = null;
         }
         catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
@@ -104,8 +112,8 @@
         _loaded = true;
     }
 
-    private static bool Matches(DeviceInfo d, string q) =>
-        new[] { d.DeviceId, d.Vendor, d.Model, d.SerialNumber, d.FirmwareVersion }
+    private static bool Matches(DeviceRow r, string q) =>
+        new[] { r.Name, r.DeviceId, r.PluginName, r.Info?.Vendor, r.Info?.Model, r.Info?.SerialNumber }
             .Any(v => v?.Contains(q, StringComparison.OrdinalIgnoreCase) == true);
 
     public void Dispose()
@@ -113,6 +121,4 @@
         _cts.Cancel();
         _cts.Dispose();
     }
-
-    private sealed record Row(DeviceInfo Device, DateTimeOffset? LastReading);
 }
