@@ -72,7 +72,7 @@
             Showing <a href="@($"devices/{Uri.EscapeDataString(_device.DeviceId)}")">@_device.Name</a>
             @if (_device.Info is { } info)
             {
-                <span>(@info.Vendor @info.Model)</span>
+                <span>&nbsp;(@info.Vendor @info.Model)</span>
             }
         </p>
     }
