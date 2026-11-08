@@ -102,8 +102,8 @@
                     <div class="card-grid">
                         <MetricChartCard Title="Solar, load and grid" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh"
                                          Series="@([new(Metrics.PvPower, "Solar", SeriesColors.Slot2), new(Metrics.LoadPower, "Load", SeriesColors.Slot1), new(Metrics.GridPower, "Grid", SeriesColors.Slot3)])" />
-                        <MetricChartCard Title="Solar by PV string" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh"
-                                         Series="@([new(Metrics.ForString(Metrics.PvPower, 1), "String 1", SeriesColors.Slot1), new(Metrics.ForString(Metrics.PvPower, 2), "String 2", SeriesColors.Slot2)])" />
+                        <MetricChartCard Title="@($"Solar by PV {PvInputName}")" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh"
+                                         Series="@([new(Metrics.ForString(Metrics.PvPower, 1), MetricFormat.PvInput(PvInputName, 1), SeriesColors.Slot1), new(Metrics.ForString(Metrics.PvPower, 2), MetricFormat.PvInput(PvInputName, 2), SeriesColors.Slot2)])" />
                         <MetricChartCard Title="Grid voltage" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh" ZeroBaseline="false"
                                          Series="@([new(Metrics.ForPhase(Metrics.GridVoltage, 1), "L1", SeriesColors.Slot1), new(Metrics.ForPhase(Metrics.GridVoltage, 2), "L2", SeriesColors.Slot2)])" />
                         <MetricChartCard Title="Inverter temperature" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh" ZeroBaseline="false"
@@ -116,8 +116,8 @@
                 <div class="tab-body">
                     <div class="panel grid-panel">
                         <FluentDataGrid Items="@_latestRows.AsQueryable()" TGridItem="Reading" GridTemplateColumns="2fr 1.5fr 1fr 1fr 0.8fr">
-                            <TemplateColumn Title="Metric" Sortable="true" SortBy="@(GridSort<Reading>.ByAscending(r => MetricFormat.DisplayName(r.Metric)))">
-                                @MetricFormat.DisplayName(context.Metric)
+                            <TemplateColumn Title="Metric" Sortable="true" SortBy="@(GridSort<Reading>.ByAscending(r => MetricFormat.DisplayName(r.Metric, PvInputName)))">
+                                @MetricFormat.DisplayName(context.Metric, PvInputName)
                             </TemplateColumn>
                             <PropertyColumn Title="Name" Property="@(r => r.Metric)" Sortable="true" />
                             <TemplateColumn Title="Value" Align="DataGridCellAlignment.End">
@@ -127,7 +127,7 @@
                             <TemplateColumn Title="">
                                 <FluentButton Appearance="ButtonAppearance.Subtle" Size="ButtonSize.Small" OnClick="() => _selectedMetric = context.Metric"
                                               IconStart="@(new Icons.Regular.Size16.DataLine())"
-                                              aria-label="@($"Chart {MetricFormat.DisplayName(context.Metric)}")">Chart</FluentButton>
+                                              aria-label="@($"Chart {MetricFormat.DisplayName(context.Metric, PvInputName)}")">Chart</FluentButton>
                             </TemplateColumn>
                         </FluentDataGrid>
                     </div>
@@ -135,9 +135,9 @@
                     @if (_selectedMetric is { } metric)
                     {
                         <TimeRangeBar Value="_range" ValueChanged="SetRange" />
-                        <MetricChartCard Title="@MetricFormat.DisplayName(metric)" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh"
+                        <MetricChartCard Title="@MetricFormat.DisplayName(metric, PvInputName)" DeviceId="@DeviceId" Range="_range" RefreshKey="_chartRefresh"
                                          ZeroBaseline="@(!metric.Contains("voltage") && !metric.Contains("frequency") && !metric.Contains("temperature"))"
-                                         Series="@([new(metric, MetricFormat.DisplayName(metric), SeriesColors.Slot1)])" />
+                                         Series="@([new(metric, MetricFormat.DisplayName(metric, PvInputName), SeriesColors.Slot1)])" />
                     }
                     else
                     {
@@ -158,6 +158,9 @@
     private string? _actionError;
 
     private string Title => _device?.Name ?? DeviceId;
+
+    /// <summary>What the device's vendor calls a PV input: "string", or e.g. "line" for SRNE.</summary>
+    private string PvInputName => _device?.Plugin?.PvInputName ?? "string";
 
     private string Subtitle => _device?.Info is { } info ? $"{info.Vendor} · {info.Model}" : _device?.PluginName ?? "Device";
     private Dictionary<string, Reading> _latest = [];

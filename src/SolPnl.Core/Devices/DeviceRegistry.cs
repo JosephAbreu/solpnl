@@ -67,7 +67,8 @@ public sealed class DeviceRegistry : IAsyncDisposable
         return _types.Values
             .OrderBy(t => t.DisplayName, StringComparer.CurrentCulture)
             .Select(t => new PluginInfo(t.Id, t.DisplayName, t.Description, PluginKinds.Device,
-                states.GetValueOrDefault(t.Id, true), counts.GetValueOrDefault(t.Id), t.Settings))
+                states.GetValueOrDefault(t.Id, true), counts.GetValueOrDefault(t.Id), t.Settings,
+                PvInputName: t.PvInputName))
             .ToList();
     }
 
