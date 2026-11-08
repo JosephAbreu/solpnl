@@ -1,4 +1,5 @@
-# SolPnl
+<h1><img src="src/SolPnl.Web/wwwroot/favicon.svg" alt="" width="40" height="40" align="top"> SolPnl</h1>
+
 [![CI](https://github.com/JosephAbreu/solpnl/actions/workflows/ci.yml/badge.svg)](https://github.com/JosephAbreu/solpnl/actions/workflows/ci.yml)
 
 A self-hosted web application for solar equipment monitoring
