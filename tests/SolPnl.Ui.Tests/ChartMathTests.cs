@@ -121,3 +121,56 @@ public class MetricFormatTests
         public void Dispose() => CultureInfo.CurrentCulture = _previous;
     }
 }
+
+[Collection("MetricFormat units")]
+public class PressureUnitTests
+{
+    [Fact]
+    public void Pressure_FollowsTheUnitChoice()
+    {
+        var previousCulture = CultureInfo.CurrentCulture;
+        var previousUnit = MetricFormat.TemperatureUnit;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("en-US");
+            MetricFormat.TemperatureUnit = SolPnl.Contracts.Models.TemperatureUnits.Fahrenheit;
+            Assert.Equal("30.09 inHg", MetricFormat.Pressure(1019.1));
+            Assert.Equal("inHg", MetricFormat.ToDisplay(1019.1, "hPa").Unit);
+
+            MetricFormat.TemperatureUnit = SolPnl.Contracts.Models.TemperatureUnits.Celsius;
+            Assert.Equal("1,019 hPa", MetricFormat.Pressure(1019.1));
+            Assert.Equal("–", MetricFormat.Pressure(null));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+            MetricFormat.TemperatureUnit = previousUnit;
+        }
+    }
+}
+
+[Collection("MetricFormat units")]
+public class ElevationUnitTests
+{
+    [Fact]
+    public void Elevation_FollowsTheUnitChoice()
+    {
+        var previousUnit = MetricFormat.TemperatureUnit;
+        try
+        {
+            MetricFormat.TemperatureUnit = SolPnl.Contracts.Models.TemperatureUnits.Fahrenheit;
+            Assert.Equal("ft", MetricFormat.ElevationUnit);
+            Assert.Equal("735", MetricFormat.ElevationInput(224));
+            Assert.Equal(224.028, MetricFormat.ElevationToMeters(735), 3);
+
+            MetricFormat.TemperatureUnit = SolPnl.Contracts.Models.TemperatureUnits.Celsius;
+            Assert.Equal("m", MetricFormat.ElevationUnit);
+            Assert.Equal("224.5", MetricFormat.ElevationInput(224.5));
+            Assert.Equal(224.5, MetricFormat.ElevationToMeters(224.5));
+        }
+        finally
+        {
+            MetricFormat.TemperatureUnit = previousUnit;
+        }
+    }
+}

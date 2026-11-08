@@ -19,7 +19,10 @@ public sealed record SunTimes(
     DateTimeOffset? CivilDawn,
     DateTimeOffset? CivilDusk);
 
-/// <summary>Current conditions. Temperatures in °C, wind in km/h, precipitation in mm, irradiance in W/m².</summary>
+/// <summary>
+/// Current conditions. Temperatures in °C, wind in km/h, precipitation in mm, irradiance in W/m², pressure in hPa
+/// (sea-level, as weather reports and barometers show it).
+/// </summary>
 public sealed record WeatherNow(
     DateTimeOffset Time,
     double? TemperatureC,
@@ -29,7 +32,8 @@ public sealed record WeatherNow(
     double? PrecipitationMm,
     double? IrradianceWm2,
     int? WeatherCode,
-    bool? IsDay);
+    bool? IsDay,
+    double? PressureHpa = null);
 
 /// <summary>One forecast hour. <see cref="IrradianceWm2"/> is global horizontal irradiance (mean over the hour).</summary>
 public sealed record HourlyForecast(
@@ -123,7 +127,12 @@ public sealed record SiteOverview(
     DaySummary? TodaySummary,
     DailyForecast? TomorrowForecast,
     IReadOnlyList<Insight> Insights,
-    IReadOnlyList<WeatherAlert> Alerts);
+    IReadOnlyList<WeatherAlert> Alerts,
+    PressureTrend? Pressure = null);
+
+/// <summary>Sea-level pressure now and its change over the last 3 hours (barometric tendency).</summary>
+/// <param name="Tendency">"rising", "falling" or "steady"; <see cref="Rapid"/> when the change is large.</param>
+public sealed record PressureTrend(double Hpa, double? ChangeHpa3h, string Tendency, bool Rapid);
 
 public sealed record SiteSettings(SiteLocation? Location, string TemperatureUnit);
 
@@ -150,4 +159,5 @@ public static class WeatherMetrics
     public const string WindSpeed = "weather.wind_speed";      // km/h
     public const string Precipitation = "weather.precipitation"; // mm
     public const string Irradiance = "weather.irradiance";     // W/m², global horizontal
+    public const string Pressure = "weather.pressure";         // hPa, sea-level
 }
