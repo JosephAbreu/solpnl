@@ -66,6 +66,7 @@ public static class BackupArchive
         new BackupTable<PluginSettingEntity>((row, secrets) => secrets.IsSecret(row.PluginId, row.Key) ? null : row),
         new BackupTable<NotificationLogEntity>(),
         new BackupTable<AlertHistoryEntity>(),
+        new BackupTable<GridEventEntity>(),
     ];
 
     public static string Version { get; } =

@@ -57,6 +57,16 @@ public static class MetricFormat
     public const double HpaToInHg = 0.0295299830714;
     public const double MetersPerFoot = 0.3048;
 
+    /// <summary>
+    /// Money with the user's currency symbol in front, e.g. "$1,234.56"; whole amounts of 1,000 or more drop the cents.
+    /// </summary>
+    public static string Money(double? amount, string currency) => amount switch
+    {
+        null => "–",
+        { } a when Math.Abs(a) >= 1000 => currency + a.ToString("N0", CultureInfo.CurrentCulture),
+        { } a => currency + a.ToString("N2", CultureInfo.CurrentCulture),
+    };
+
     /// <summary>Unit for elevations: "ft" with US units, otherwise "m". Elevations are stored in meters.</summary>
     public static string ElevationUnit => TemperatureUnit == TemperatureUnits.Fahrenheit ? "ft" : "m";
 

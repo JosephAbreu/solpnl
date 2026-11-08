@@ -191,3 +191,50 @@ dd {
         padding-left: 4px;
     }
 }
+
+.grid-summary {
+    margin: 0 0 8px;
+    color: var(--colorNeutralForeground1);
+}
+
+.grid-events {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fontSizeBase300);
+    color: var(--colorNeutralForeground1);
+}
+
+    .grid-events th {
+        padding: 4px 8px;
+        border-bottom: 1px solid var(--colorNeutralStroke1);
+        text-align: left;
+        font-size: var(--fontSizeBase200);
+        font-weight: var(--fontWeightSemibold);
+        color: var(--colorNeutralForeground2);
+    }
+
+    .grid-events td {
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--colorNeutralStroke2);
+    }
+
+    .grid-events .num {
+        text-align: right;
+        white-space: nowrap;
+    }
+
+.hint {
+    margin: 8px 0 0;
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+.link {
+    margin-top: 6px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--colorBrandForegroundLink);
+    font: inherit;
+    cursor: pointer;
+}
