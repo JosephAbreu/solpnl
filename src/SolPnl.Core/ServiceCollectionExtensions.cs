@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using SolPnl.Core.Backup;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
 using SolPnl.Core.Notifications;
@@ -45,6 +46,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<PluginSettingsStore>();
         services.AddSingleton<NotificationService>();
         services.AddHostedService<NotificationBackgroundService>();
+
+        // Backups (needs a DataDirectory registered by the host).
+        services.AddSingleton<BackupService>();
+        services.AddHostedService<BackupBackgroundService>();
 
         services.Configure<PollingOptions>(configuration.GetSection("Polling"));
         services.AddHostedService<PollingService>();

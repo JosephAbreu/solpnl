@@ -1,0 +1,1 @@
+-- 7: nothing to do on SQLite (text is always Unicode). MySQL/MariaDB convert their text tables to utf8mb4 here.

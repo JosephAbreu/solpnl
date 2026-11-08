@@ -1,0 +1,183 @@
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 900px;
+}
+
+h2 {
+    margin: 0;
+    font-size: var(--fontSizeBase400);
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+.hint {
+    margin: 0;
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+.mono {
+    font-family: var(--fontFamilyMonospace, Consolas, monospace);
+    font-size: var(--fontSizeBase200);
+}
+
+/* Status: bold labels with a colon, like the Essentials card. */
+dl {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 6px 12px;
+    margin: 0;
+}
+
+dt {
+    color: var(--colorNeutralForeground1);
+    font-weight: var(--fontWeightSemibold);
+}
+
+    dt::after {
+        content: ":";
+    }
+
+dd {
+    margin: 0;
+    color: var(--colorNeutralForeground1);
+    overflow-wrap: anywhere;
+}
+
+.result,
+.running {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.files {
+    width: 100%;
+    border-collapse: collapse;
+    color: var(--colorNeutralForeground1);
+}
+
+    .files th {
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--colorNeutralStroke1);
+        text-align: left;
+        font-size: var(--fontSizeBase200);
+        font-weight: var(--fontWeightSemibold);
+        color: var(--colorNeutralForeground2);
+    }
+
+    .files td {
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--colorNeutralStroke2);
+        vertical-align: middle;
+    }
+
+    .files .num {
+        text-align: right;
+        white-space: nowrap;
+    }
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border: none;
+    border-radius: var(--borderRadiusMedium);
+    background: transparent;
+    color: var(--colorBrandForeground1);
+    font: inherit;
+    font-size: var(--fontSizeBase300);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+    .action:hover {
+        background: var(--colorNeutralBackground1Hover);
+    }
+
+    .action:focus-visible {
+        outline: 2px solid var(--colorStrokeFocus2);
+        outline-offset: 1px;
+    }
+
+    .action:disabled {
+        color: var(--colorNeutralForegroundDisabled);
+        cursor: default;
+    }
+
+.confirm-row td {
+    background: var(--colorNeutralBackground2);
+}
+
+.confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 0;
+}
+
+    .confirm p {
+        margin: 0;
+    }
+
+.confirm-actions,
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.schedule {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 200px));
+    gap: 12px;
+}
+
+.upload {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    color: var(--colorNeutralForeground1);
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* Phones: the action labels go, icons stay (each has a title / aria-label). */
+@media (max-width: 600px) {
+    .action span {
+        display: none;
+    }
+
+    dl {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+    }
+
+    dd + dt {
+        margin-top: 6px;
+    }
+}

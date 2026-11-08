@@ -124,6 +124,61 @@ public sealed class SolPnlApi(HttpClient http)
         return await http.GetFromJsonAsync<AlertsPage>("api/v1/alerts?" + string.Join("&", query), Json, ct) ?? new AlertsPage([], [], false);
     }
 
+    // ---- Backups --------------------------------------------------------------------------------------------
+
+    public async Task<BackupStatus?> GetBackupsAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<BackupStatus>("api/v1/backups", Json, ct);
+
+    public async Task<ApiResult<BackupSettings>> SaveBackupSettingsAsync(BackupSettings settings, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync("api/v1/backups/settings", settings, Json, ct);
+        return await ReadResultAsync<BackupSettings>(response, ct);
+    }
+
+    /// <summary>Starts a backup; poll <see cref="GetBackupsAsync"/> for the result.</summary>
+    public async Task<ApiResult<PluginActionResult>> StartBackupAsync(CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync("api/v1/backups", content: null, ct);
+        return await ReadResultAsync<PluginActionResult>(response, ct);
+    }
+
+    public async Task<ApiResult<bool>> DeleteBackupAsync(string name, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/v1/backups/{Uri.EscapeDataString(name)}", ct);
+        if (response.IsSuccessStatusCode) return new ApiResult<bool>(true, null);
+        return new ApiResult<bool>(false, (await ReadResultAsync<object>(response, ct)).Error);
+    }
+
+    /// <summary>Restores one of the server's backups. SolPnl restarts to do it.</summary>
+    public async Task<ApiResult<PluginActionResult>> RestoreBackupAsync(string name, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync($"api/v1/backups/{Uri.EscapeDataString(name)}/restore", content: null, ct);
+        return await ReadResultAsync<PluginActionResult>(response, ct);
+    }
+
+    /// <summary>Restores an uploaded backup file. SolPnl restarts to do it.</summary>
+    public async Task<ApiResult<PluginActionResult>> RestoreUploadAsync(Stream backup, CancellationToken ct = default)
+    {
+        using var content = new StreamContent(backup);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/zip");
+        using var response = await http.PostAsync("api/v1/backups/restore", content, ct);
+        return await ReadResultAsync<PluginActionResult>(response, ct);
+    }
+
+    /// <summary>True when the server answers (used to wait out a restart).</summary>
+    public async Task<bool> IsUpAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            using var response = await http.GetAsync("api/v1/health", ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
+    }
+
     // ---- Plugins and device configuration --------------------------------------------------------------------
 
     public async Task<IReadOnlyList<PluginInfo>> GetPluginsAsync(CancellationToken ct = default) =>

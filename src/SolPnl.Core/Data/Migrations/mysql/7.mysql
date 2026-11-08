@@ -1,0 +1,14 @@
+-- 7: store text as utf8mb4 (full Unicode) whatever the server's default character set is. MariaDB servers that
+-- still default to latin1 turned characters such as "✓" into "?". Only tables with text columns are converted; the
+-- reading tables hold numbers only. Re-runnable: converting a table that is already utf8mb4 changes nothing.
+alter database character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table device convert to character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table metric convert to character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table device_config convert to character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table plugin_state convert to character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table app_setting convert to character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table day_summary convert to character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table plugin_setting convert to character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table notification_log convert to character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table alert_history convert to character set utf8mb4 collate utf8mb4_unicode_ci;
+alter table schema_script convert to character set utf8mb4 collate utf8mb4_unicode_ci;
