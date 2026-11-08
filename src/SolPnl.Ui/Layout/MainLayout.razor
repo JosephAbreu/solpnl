@@ -69,6 +69,7 @@
                 Nav.NavigateTo("setup", replace: true);
                 return;
             }
+            MetricFormat.TemperatureUnit = (await Api.GetSettingsAsync()).TemperatureUnit;
         }
         catch (HttpRequestException)
         {

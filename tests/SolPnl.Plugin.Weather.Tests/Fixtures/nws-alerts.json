@@ -1,0 +1,55 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0b646d4ee9368655c668961068a1e659a9b86ffa.003.1",
+   "type": "Feature",
+   "properties": {
+    "id": "urn:oid:2.49.0.1.840.0.0b646d4ee9368655c668961068a1e659a9b86ffa.003.1",
+    "areaDesc": "Gulf of Alaska South of 57 Degrees North and East of 144 W",
+    "sent": "2026-11-07T14:54:00-09:00",
+    "effective": "2026-11-07T14:54:00-09:00",
+    "onset": "2026-11-08T17:00:00-09:00",
+    "expires": "2026-11-08T09:00:00-09:00",
+    "ends": "2026-11-09T05:00:00-09:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Observed",
+    "urgency": "Immediate",
+    "event": "Storm Warning",
+    "senderName": "NWS Juneau AK",
+    "headline": "Storm Warning issued November 7 at 2:54PM AKST until November 9 at 5:00AM AKST by NWS Juneau AK",
+    "description": "Offshore waters forecast for Gulf of Alaska east of 144W\n\nWind forecasts reflect the predominant speed and direction\nexpected. Sea forecasts represent the average of the highest\none-third of the combined windwave and swell height.\n\n.TONIGHT...N wind 30 kt. Seas 11 ft. Rain early in the evening.\n.SUN...W wind 20 kt becoming SE 15 kt in the afternoon. Seas\n11 ft.\n.SUN NIGHT...E gale to 45 kt. Seas 14 ft building to 23 ft\nlate. Rain.\n.MON...S gale to 45 kt. Seas 28 ft. Rain.\n.MON NIGHT...S gale to 40 kt diminishing to 30 kt late. Seas\n24 ft subsiding to 19 ft late.\n.TUE...E wind 25 kt. Seas 14 ft.\n.WED...SW wind 20 kt. Seas 14 ft.\n.THU...SE wind 25 kt. Seas 14 ft.",
+    "instruction": null,
+    "response": "Avoid"
+   }
+  },
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.0b646d4ee9368655c668961068a1e659a9b86ffa.002.1",
+   "type": "Feature",
+   "properties": {
+    "id": "urn:oid:2.49.0.1.840.0.0b646d4ee9368655c668961068a1e659a9b86ffa.002.1",
+    "areaDesc": "Gulf of Alaska North of 57 Degrees North and East of 144 W",
+    "sent": "2026-11-07T14:54:00-09:00",
+    "effective": "2026-11-07T14:54:00-09:00",
+    "onset": "2026-11-08T17:00:00-09:00",
+    "expires": "2026-11-08T09:00:00-09:00",
+    "ends": "2026-11-09T05:00:00-09:00",
+    "status": "Actual",
+    "messageType": "Alert",
+    "category": "Met",
+    "severity": "Severe",
+    "certainty": "Observed",
+    "urgency": "Immediate",
+    "event": "Storm Warning",
+    "senderName": "NWS Juneau AK",
+    "headline": "Storm Warning issued November 7 at 2:54PM AKST until November 9 at 5:00AM AKST by NWS Juneau AK",
+    "description": "Offshore waters forecast for Gulf of Alaska east of 144W\n\nWind forecasts reflect the predominant speed and direction\nexpected. Sea forecasts represent the average of the highest\none-third of the combined windwave and swell height.\n\n.TONIGHT...Winds light increasing to NW 25 kt. Seas 9 ft.\n.SUN...W wind 20 kt. Seas 9 ft.\n.SUN NIGHT...E wind 25 kt increasing to storm force 50 kt after\nmidnight. Seas 8 ft building to 22 ft late. S swell in the\nevening. Rain late.\n.MON...E storm force wind to 55 kt. Seas 36 ft. Rain.\n.MON NIGHT...SE gale to 45 kt. Seas 33 ft subsiding to 24 ft\nlate. Rain in the evening.\n.TUE...E wind 25 kt. Seas 14 ft.\n.WED...S wind 20 kt. Seas 12 ft.\n.THU...E wind 25 kt. Seas 13 ft.",
+    "instruction": null,
+    "response": "Avoid"
+   }
+  }
+ ]
+}

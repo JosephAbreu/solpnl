@@ -23,6 +23,8 @@
         </FluentMessageBar>
     }
 
+    <SiteToday Overview="_site" />
+
     @if (_device is not null)
     {
         <section class="now" aria-label="Current values">
@@ -95,6 +97,7 @@
     ];
 
     private DeviceRow? _device;
+    private SiteOverview? _site;
     private Dictionary<string, Reading> _latest = [];
     private DateTimeOffset? _lastReading;
     private TimeRange _range = TimeRange.Last24Hours;
@@ -105,7 +108,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadLatestAsync();
+        await Task.WhenAll(LoadLatestAsync(), LoadSiteAsync());
         _ = PollAsync(_cts.Token);
     }
 
@@ -113,8 +116,21 @@
 
     private void SetRange(TimeRange range) => Nav.NavigateTo(Nav.GetUriWithQueryParameter("range", range.Key));
 
+    private async Task LoadSiteAsync()
+    {
+        try
+        {
+            _site = await Api.GetSiteOverviewAsync(_cts.Token);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or OperationCanceledException)
+        {
+            // The device section reports connection problems; the site section just stays as it was.
+        }
+    }
+
     private async Task RefreshAsync()
     {
+        await LoadSiteAsync();
         await LoadLatestAsync();
         _chartRefresh++;
     }
@@ -129,7 +145,11 @@
             while (await timer.WaitForNextTickAsync(ct))
             {
                 await LoadLatestAsync();
-                if (++ticks % 6 == 0) _chartRefresh++;
+                if (++ticks % 6 == 0)
+                {
+                    _chartRefresh++;
+                    await LoadSiteAsync();
+                }
                 await InvokeAsync(StateHasChanged);
             }
         }

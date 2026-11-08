@@ -8,12 +8,15 @@
   </Folder>
   <Folder Name="/src/plugins/">
     <Project Path="src/plugins/SolPnl.Plugin.Notify.Smtp/SolPnl.Plugin.Notify.Smtp.csproj" />
+    <Project Path="src/plugins/SolPnl.Plugin.NwsAlerts/SolPnl.Plugin.NwsAlerts.csproj" />
+    <Project Path="src/plugins/SolPnl.Plugin.OpenMeteo/SolPnl.Plugin.OpenMeteo.csproj" />
     <Project Path="src/plugins/SolPnl.Plugin.Simulator/SolPnl.Plugin.Simulator.csproj" />
     <Project Path="src/plugins/SolPnl.Plugin.SolarmanSrne/SolPnl.Plugin.SolarmanSrne.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SolPnl.Core.Tests/SolPnl.Core.Tests.csproj" />
     <Project Path="tests/SolPnl.Plugin.SolarmanSrne.Tests/SolPnl.Plugin.SolarmanSrne.Tests.csproj" />
+    <Project Path="tests/SolPnl.Plugin.Weather.Tests/SolPnl.Plugin.Weather.Tests.csproj" />
     <Project Path="tests/SolPnl.Ui.Tests/SolPnl.Ui.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">

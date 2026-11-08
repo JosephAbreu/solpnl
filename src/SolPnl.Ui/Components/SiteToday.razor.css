@@ -1,0 +1,105 @@
+.today {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+    gap: 12px;
+}
+
+    .today > *,
+    .insights > * {
+        min-width: 0;
+    }
+
+.tile {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tile-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+.sun-row {
+    display: flex;
+    gap: 24px;
+}
+
+    .sun-row > div {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sun-row strong,
+    .big {
+        font-size: var(--fontSizeBase500);
+        line-height: var(--lineHeightBase500);
+        font-weight: var(--fontWeightSemibold);
+        color: var(--colorNeutralForeground1);
+    }
+
+.small,
+.detail,
+.muted {
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+.temps {
+    border-collapse: collapse;
+    font-size: var(--fontSizeBase300);
+}
+
+    .temps th {
+        padding: 2px 12px 2px 0;
+        text-align: left;
+        font-weight: var(--fontWeightRegular);
+        color: var(--colorNeutralForeground3);
+    }
+
+    .temps td {
+        padding: 2px 0;
+        font-weight: var(--fontWeightSemibold);
+        color: var(--colorNeutralForeground1);
+    }
+
+.insights {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+    gap: 12px;
+}
+
+.insight {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border-left-width: 3px;
+}
+
+    .insight.good {
+        border-left-color: var(--status-good);
+    }
+
+    .insight.warning {
+        border-left-color: #c98500;
+    }
+
+    .insight.info {
+        border-left-color: var(--colorBrandStroke1);
+    }
+
+    .insight p {
+        margin: 0;
+        font-size: var(--fontSizeBase300);
+        color: var(--colorNeutralForeground2);
+    }
+
+.insight-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--colorNeutralForeground1);
+}

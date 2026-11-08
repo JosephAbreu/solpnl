@@ -1,0 +1,50 @@
+.days {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+h2 {
+    margin: 0;
+    font-size: var(--fontSizeBase400);
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+.hint {
+    margin: 0;
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fontSizeBase200);
+}
+
+th, td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--colorNeutralStroke2);
+    text-align: left;
+    white-space: nowrap;
+    color: var(--colorNeutralForeground1);
+}
+
+thead th {
+    color: var(--colorNeutralForeground3);
+    font-weight: var(--fontWeightRegular);
+}
+
+tbody th {
+    font-weight: var(--fontWeightSemibold);
+}
+
+.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}

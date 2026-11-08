@@ -30,7 +30,23 @@ public static class MetricFormat
         [Metrics.InverterTemperature] = "Inverter temperature",
         ["vendor.srne.state"] = "Operating state (SRNE)",
         ["vendor.srne.dc_bus_voltage"] = "DC bus voltage (SRNE)",
+        [WeatherMetrics.Temperature] = "Outdoor temperature",
+        [WeatherMetrics.Humidity] = "Humidity",
+        [WeatherMetrics.CloudCover] = "Cloud cover",
+        [WeatherMetrics.WindSpeed] = "Wind speed",
+        [WeatherMetrics.Precipitation] = "Precipitation",
+        [WeatherMetrics.Irradiance] = "Sunlight (irradiance)",
     };
+
+    /// <summary>Display unit for temperatures: "F" or "C". Values are stored in °C and converted for display.</summary>
+    public static string TemperatureUnit { get; set; } = TemperatureUnits.Fahrenheit;
+
+    /// <summary>Converts a stored value to the user's display unit (only temperatures change today).</summary>
+    public static (double Value, string? Unit) ToDisplay(double value, string? unit) =>
+        unit == "°C" && TemperatureUnit == TemperatureUnits.Fahrenheit ? (value * 9 / 5 + 32, "°F") : (value, unit);
+
+    /// <summary>Temperature in °C formatted in the display unit, e.g. "72 °F".</summary>
+    public static string Temperature(double? celsius) => celsius is { } c ? Format(c, "°C") : "–";
 
     /// <summary>"pv.power.1" => "Solar power · string 1", "load.power.l2" => "Load · L2".</summary>
     public static string DisplayName(string metric)
@@ -48,13 +64,14 @@ public static class MetricFormat
         return metric;
     }
 
-    /// <summary>Value with its unit, at a precision suited to the unit.</summary>
+    /// <summary>Value with its unit (converted to the display unit), at a precision suited to the unit.</summary>
     public static string Format(double value, string? unit)
     {
+        (value, unit) = ToDisplay(value, unit);
         var number = unit switch
         {
             "Hz" => value.ToString("N2", CultureInfo.CurrentCulture),
-            "W" or "VA" or "%" or "" or null => value.ToString("N0", CultureInfo.CurrentCulture),
+            "W" or "VA" or "%" or "" or null or "W/m²" or "°F" => value.ToString("N0", CultureInfo.CurrentCulture),
             _ => value.ToString(Math.Abs(value) >= 1000 ? "N0" : "N1", CultureInfo.CurrentCulture),
         };
         return string.IsNullOrEmpty(unit) ? number : unit == "%" ? $"{number}%" : $"{number} {unit}";
@@ -93,4 +110,35 @@ public static class MetricFormat
         if (age < TimeSpan.FromDays(1)) return $"{(int)age.TotalHours}h ago";
         return timestamp.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
     }
+
+    /// <summary>Plain-language description of a WMO weather code (as used by Open-Meteo).</summary>
+    public static string WeatherText(int? code) => code switch
+    {
+        0 => "Clear",
+        1 => "Mainly clear",
+        2 => "Partly cloudy",
+        3 => "Overcast",
+        45 or 48 => "Fog",
+        51 or 53 or 55 => "Drizzle",
+        56 or 57 => "Freezing drizzle",
+        61 => "Light rain",
+        63 => "Rain",
+        65 => "Heavy rain",
+        66 or 67 => "Freezing rain",
+        71 => "Light snow",
+        73 => "Snow",
+        75 => "Heavy snow",
+        77 => "Snow grains",
+        80 or 81 or 82 => "Rain showers",
+        85 or 86 => "Snow showers",
+        95 => "Thunderstorm",
+        96 or 99 => "Thunderstorm with hail",
+        null => "–",
+        _ => "Unknown",
+    };
+
+    public static string Duration(TimeSpan span) => $"{(int)span.TotalHours}h {span.Minutes:00}m";
+
+    public static string Time(DateTimeOffset? t) =>
+        t is { } v ? v.ToString(CultureInfo.CurrentCulture.DateTimeFormat.ShortTimePattern, CultureInfo.CurrentCulture) : "–";
 }

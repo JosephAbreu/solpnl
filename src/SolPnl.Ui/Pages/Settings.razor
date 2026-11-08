@@ -1,0 +1,214 @@
+@page "/settings"
+@inject SolPnlApi Api
+
+<PageTitle>Settings · SolPnl</PageTitle>
+
+<div class="page">
+    <PageHeader Title="Settings" Subtitle="Location and display preferences" Icon="@(new Icons.Regular.Size24.Settings())"
+                Breadcrumbs="@([("Home", ""), ("Settings", null)])" />
+
+    @if (_loadError is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Can't reach the SolPnl service">@_loadError</FluentMessageBar>
+    }
+
+    <section class="panel section" aria-labelledby="location-heading">
+        <h2 id="location-heading">Location</h2>
+        <p class="hint">Where your equipment is. SolPnl uses it for sunrise and sunset, weather, and solar insights.
+            Coordinates never leave this machine except to fetch weather for them.</p>
+
+        <label class="field-label" for="place-search">Find a place</label>
+        <form class="search" role="search" @onsubmit="SearchAsync" @onsubmit:preventDefault="true">
+            <FluentTextInput Id="place-search" @bind-Value="_query" aria-label="Find a place" Placeholder="City or town, e.g. Austin" Width="100%" AutoComplete="off" />
+            <FluentButton Type="ButtonType.Submit" Appearance="ButtonAppearance.Outline" Loading="_searching"
+                          IconStart="@(new Icons.Regular.Size20.Search())">Search</FluentButton>
+        </form>
+        @if (_searchError is not null)
+        {
+            <p class="hint error">@_searchError</p>
+        }
+        @if (_results is { Count: > 0 })
+        {
+            <ul class="results" aria-label="Search results">
+                @foreach (var r in _results)
+                {
+                    <li>
+                        <button type="button" @onclick="() => Pick(r)">
+                            <strong>@r.Name</strong>
+                            <span>@string.Join(", ", new[] { r.Region, r.Country }.Where(x => !string.IsNullOrEmpty(x)))</span>
+                            <span class="coords">@r.Latitude.ToString("0.###", CultureInfo.CurrentCulture), @r.Longitude.ToString("0.###", CultureInfo.CurrentCulture)</span>
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+        else if (_results is { Count: 0 })
+        {
+            <p class="hint">No places found. Try a nearby town, or enter coordinates below.</p>
+        }
+
+        <form class="fields" @onsubmit="SaveLocationAsync" @onsubmit:preventDefault="true">
+            <FluentTextInput @bind-Value="_name" Label="Name" Placeholder="Home" Width="100%" MaxLength="100" />
+            <FluentTextInput @bind-Value="_latitude" Label="Latitude" Required="true" Placeholder="30.2672" InputMode="TextInputMode.Decimal" Width="100%" />
+            <FluentTextInput @bind-Value="_longitude" Label="Longitude" Required="true" Placeholder="-97.7431" InputMode="TextInputMode.Decimal" Width="100%" />
+            <FluentTextInput @bind-Value="_elevation" Label="Elevation (m)" Placeholder="Optional" InputMode="TextInputMode.Decimal" Width="100%" />
+            <FluentTextInput @bind-Value="_timeZone" Label="Time zone" Placeholder="America/Chicago" Width="100%" />
+            <div class="actions">
+                <FluentButton Type="ButtonType.Submit" Appearance="ButtonAppearance.Primary" Loading="_saving" Disabled="_saving">Save location</FluentButton>
+            </div>
+        </form>
+        <p class="hint">Latitude is positive north of the equator; longitude is negative west of Greenwich (all of the Americas).
+            The time zone decides where each day starts and ends.</p>
+
+        @if (_locationMessage is { } message)
+        {
+            <FluentMessageBar Intent="@(_locationOk ? MessageBarIntent.Success : MessageBarIntent.Error)">@message</FluentMessageBar>
+        }
+    </section>
+
+    <section class="panel section" aria-labelledby="units-heading">
+        <h2 id="units-heading">Units</h2>
+        <div class="options" role="radiogroup" aria-label="Temperature unit">
+            @foreach (var (unit, label) in new[] { (TemperatureUnits.Fahrenheit, "Fahrenheit (°F)"), (TemperatureUnits.Celsius, "Celsius (°C)") })
+            {
+                <label class="option @(_unit == unit ? "selected" : null)">
+                    <input type="radio" name="temperature" value="@unit" checked="@(_unit == unit)" @onchange="() => SetUnitAsync(unit)" />
+                    @label
+                </label>
+            }
+        </div>
+        @if (_unitError is not null)
+        {
+            <p class="hint error">@_unitError</p>
+        }
+    </section>
+</div>
+
+@code {
+    private string? _query, _name, _latitude, _longitude, _elevation, _timeZone;
+    private List<LocationSearchResult>? _results;
+    private string? _searchError, _locationMessage, _loadError, _unitError;
+    private bool _searching, _saving, _locationOk;
+    private string _unit = TemperatureUnits.Fahrenheit;
+
+    private static string N(double v, string format = "0.#####") => v.ToString(format, CultureInfo.InvariantCulture);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var settings = await Api.GetSettingsAsync();
+            _unit = settings.TemperatureUnit;
+            if (settings.Location is { } l) Fill(l.Name, l.Latitude, l.Longitude, l.ElevationMeters, l.TimeZoneId);
+            else _timeZone = TimeZoneInfo.Local.Id; // the browser's time zone is a good guess
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadError = ex.Message;
+        }
+    }
+
+    private void Fill(string? name, double lat, double lon, double? elevation, string? zone)
+    {
+        _name = name;
+        _latitude = N(lat);
+        _longitude = N(lon);
+        _elevation = elevation is { } e ? N(e, "0.#") : null;
+        _timeZone = zone ?? _timeZone;
+    }
+
+    private async Task SearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_query)) return;
+        _searching = true;
+        _searchError = null;
+        try
+        {
+            var result = await Api.SearchLocationsAsync(_query);
+            _results = result.Value;
+            _searchError = result.Error;
+        }
+        catch (HttpRequestException ex)
+        {
+            _searchError = ex.Message;
+        }
+        finally
+        {
+            _searching = false;
+        }
+    }
+
+    private void Pick(LocationSearchResult r)
+    {
+        Fill(r.Name, r.Latitude, r.Longitude, r.ElevationMeters, r.TimeZoneId);
+        _results = null;
+        _locationMessage = "Filled in from the search. Check the details, then select Save location.";
+        _locationOk = true;
+    }
+
+    private async Task SaveLocationAsync()
+    {
+        _locationMessage = null;
+        if (!TryNumber(_latitude, out var lat) || !TryNumber(_longitude, out var lon))
+        {
+            _locationOk = false;
+            _locationMessage = "Enter latitude and longitude as decimal numbers, e.g. 30.2672 and -97.7431.";
+            return;
+        }
+        double? elevation = null;
+        if (!string.IsNullOrWhiteSpace(_elevation))
+        {
+            if (!TryNumber(_elevation, out var e))
+            {
+                _locationOk = false;
+                _locationMessage = "Elevation must be a number of meters, or left empty.";
+                return;
+            }
+            elevation = e;
+        }
+
+        _saving = true;
+        try
+        {
+            var result = await Api.SetLocationAsync(new SiteLocation(_name, lat, lon, elevation, _timeZone ?? ""));
+            _locationOk = result.Ok;
+            _locationMessage = result.Ok
+                ? "Location saved. Sun times update right away; weather follows within a minute."
+                : result.Error;
+            if (result.Value is { } saved) Fill(saved.Name, saved.Latitude, saved.Longitude, saved.ElevationMeters, saved.TimeZoneId);
+        }
+        catch (HttpRequestException ex)
+        {
+            _locationOk = false;
+            _locationMessage = $"Can't reach SolPnl: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task SetUnitAsync(string unit)
+    {
+        _unitError = null;
+        var previous = _unit;
+        _unit = unit;
+        MetricFormat.TemperatureUnit = unit;
+        try
+        {
+            var result = await Api.SetTemperatureUnitAsync(unit);
+            if (!result.Ok) throw new InvalidOperationException(result.Error);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException)
+        {
+            _unit = previous;
+            MetricFormat.TemperatureUnit = previous;
+            _unitError = $"Couldn't save: {ex.Message}";
+        }
+    }
+
+    // Accept the invariant form (30.2672) and the user's own culture (e.g. 30,2672).
+    private static bool TryNumber(string? text, out double value) =>
+        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+        || double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value);
+}
