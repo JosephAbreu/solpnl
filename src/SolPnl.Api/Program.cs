@@ -6,12 +6,8 @@ using SolPnl.Core;
 using SolPnl.Core.Backup;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
+using SolPnl.Core.Plugins;
 using SolPnl.Core.Setup;
-using SolPnl.Plugin.Notify.Smtp;
-using SolPnl.Plugin.NwsAlerts;
-using SolPnl.Plugin.OpenMeteo;
-using SolPnl.Plugin.Simulator;
-using SolPnl.Plugin.SolarmanSrne;
 
 // SolPnl runs in one of two modes:
 //  - Setup mode: no storage configured yet. Serves the web app and the setup wizard only (gated by a one-time code
@@ -65,23 +61,26 @@ static WebApplication BuildApp(string[] args, RestartSignal restart)
         builder.Services.AddSolPnlCore(builder.Configuration);
         builder.Services.AddSingleton(new DataDirectory(dataDirectory));
 
-        // Installed device plugin types. Devices themselves are added in the UI (stored in the database).
-        builder.Services.AddSingleton<IDevicePluginType, SolarmanSrnePluginType>();
-        if (builder.Environment.IsDevelopment())
-            builder.Services.AddSingleton<IDevicePluginType, SimulatedInverterPluginType>();
+        // Plugins (device types, weather, alerts, notifications) are packages loaded from the plugins folder next to
+        // SolPnl (built in) and the one in the data directory (added on this machine). Each class is created through
+        // dependency injection, so a plugin's constructor can ask for e.g. the shared HttpClient or a logger.
+        // Devices themselves are added in the UI (stored in the database).
+        var plugins = PluginPackages.Load(
+            Path.Combine(AppContext.BaseDirectory, "plugins"),
+            Path.Combine(dataDirectory, "plugins"),
+            builder.Environment.IsDevelopment());
+        builder.Services.AddSingleton(_ => plugins); // a factory, so the host disposes it (unloading the packages)
+        foreach (var (service, implementation) in plugins.Registrations)
+            builder.Services.AddSingleton(service, sp => ActivatorUtilities.CreateInstance(sp, implementation));
 
-        // Service plugins (weather, alerts). One long-lived HttpClient; pooled connections are recycled so DNS
+        // One long-lived HttpClient for plugins that call online services; pooled connections are recycled so DNS
         // changes are picked up.
         var serviceHttp = new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(10) })
         {
             Timeout = TimeSpan.FromSeconds(20),
         };
-        serviceHttp.DefaultRequestHeaders.UserAgent.ParseAdd(NwsAlertProvider.UserAgent);
-        builder.Services.AddSingleton<IWeatherProvider>(new OpenMeteoProvider(serviceHttp));
-        builder.Services.AddSingleton<IWeatherAlertProvider>(new NwsAlertProvider(serviceHttp));
-
-        // Notification plugins.
-        builder.Services.AddSingleton<INotificationPlugin, SmtpEmailPlugin>();
+        serviceHttp.DefaultRequestHeaders.UserAgent.ParseAdd("SolPnl (https://github.com/JosephAbreu/solpnl)");
+        builder.Services.AddSingleton(serviceHttp);
     }
 
     var app = builder.Build();
@@ -112,6 +111,7 @@ static WebApplication BuildApp(string[] args, RestartSignal restart)
         api.MapManagementEndpoints();
         api.MapSiteEndpoints();
         api.MapBackupEndpoints();
+        api.MapPluginPackageEndpoints();
         api.MapExportEndpoints();
     }
 

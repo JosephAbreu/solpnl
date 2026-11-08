@@ -12,7 +12,7 @@ and alerting on the server, and depends on outside services only when a plugin y
 | Path | Purpose |
 |---|---|
 | `src/SolPnl.Contracts` | Shared models and plugin interfaces (`IDevicePluginType`, `IDevicePlugin`, `INotificationPlugin`) |
-| `src/SolPnl.Core` | Storage, device registry, polling, summaries and retention |
+| `src/SolPnl.Core` | Storage, device registry, plugin packages, polling, summaries and retention |
 | `src/SolPnl.Api` | ASP.NET Core REST API (`/api/v1`); also hosts the web app |
 | `src/SolPnl.Ui` | Shared UI (Fluent UI Blazor): layout, pages, components and SVG charts; reusable by a future MAUI Blazor Hybrid app |
 | `src/SolPnl.Web` | Blazor WebAssembly PWA host for `SolPnl.Ui` |
@@ -60,8 +60,9 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
   notifications (with a test button), and a card for each enabled plugin that has its own settings (e.g. Email).
 - **Backups** – status, the backups on the server (download, restore, delete), the daily schedule, and restoring
   from an uploaded file. See [Backups](#backups).
-- **Plugins** – installed plugins with their device counts. **Disable** pauses all of a plugin's devices (settings and
-  history are kept); **Enable** resumes them.
+- **Plugins** – installed plugins with their device counts, and whether each is built in or added. **Disable** pauses all
+  of a plugin's devices (settings and history are kept); **Enable** resumes them. **Add plugin** and **Remove** install
+  and uninstall plugin packages, and removed built-in plugins can be restored. See [Plugins](#plugins).
 - **About** (ⓘ in the top bar) – web app and server versions (with a reload prompt when the browser has an older web
   app cached), the commit a release was built from, database, runtime and uptime, project links and data credits.
 
@@ -179,6 +180,50 @@ folder on the **Backups** page, or select **Back up now**.
   `sudo systemctl daemon-reload && sudo systemctl restart solpnl`.
 - A scheduled backup that fails raises a **System** alert (and a notification, if enabled in Settings).
 
+## Plugins
+Every plugin, including the ones SolPnl ships with, is a **package** that SolPnl loads when it starts: a folder (or a
+zip of one) with a `plugin.json` and the plugin's .dll files.
+
+- **Built in:** packages in the `plugins` folder next to SolPnl (`/opt/solpnl/current/plugins` on the Pi). They update
+  with SolPnl. **Remove** keeps one out even after an update; **Restore** brings it back.
+- **Added:** packages in the `plugins` folder of the data directory (`/var/lib/solpnl/plugins` on the Pi). An added
+  package with the same id as a built-in one replaces it (e.g. a newer version).
+- Adding, removing or restoring restarts SolPnl. Removing a plugin keeps its settings and its devices' settings and
+  history, so adding it again picks up where it left off. While it's gone, its devices don't report.
+- A package that can't be loaded (e.g. built for a different SolPnl) is listed under **Not running** with the reason;
+  SolPnl starts without it.
+
+**Adding a plugin from the browser is off by default.** A plugin is code that runs with SolPnl's access to your network
+and data, and SolPnl has no login yet, so anyone who can open SolPnl could install one. Either unzip the package into
+its own folder in the data directory's `plugins` folder and restart SolPnl (`sudo systemctl restart solpnl`), or turn
+on uploads in `appsettings.Local.json`:
+```json
+{
+  "Plugins": { "AllowUpload": true }
+}
+```
+
+### Making a plugin package
+A plugin is a .NET 10 class library that references `SolPnl.Contracts` (for now, a project reference to
+`src/SolPnl.Contracts` in a clone of this repository; it isn't published as a NuGet package yet) and has public classes implementing
+`IDevicePluginType`, `IWeatherProvider`, `IWeatherAlertProvider` or `INotificationPlugin` (see the built-in plugins in
+`src/plugins`). SolPnl creates each one through dependency injection, so its constructor can take an `HttpClient`, an
+`ILogger<T>` or other SolPnl services.
+1. Set `<EnableDynamicLoading>true</EnableDynamicLoading>` in the project so the build output includes every library
+   it uses.
+2. Add a `plugin.json`, copied to the output:
+   ```json
+   {
+     "id": "acme.inverter",
+     "name": "Acme inverters",
+     "assembly": "Acme.SolPnl.Inverter.dll",
+     "description": "Optional: one sentence."
+   }
+   ```
+   `id` is lower case letters, digits, `.` and `-`; one package per id.
+3. `dotnet build -c Release`, then zip the contents of `bin/Release/net10.0` (64 MB at most). SolPnl's own libraries
+   (SolPnl.Contracts, .NET, Microsoft.Extensions) always come from SolPnl, so the package's copies are ignored.
+
 ## Plugin settings
 Plugins can declare their own settings (`IConfigurablePlugin`: text, number, secret and choice fields, plus an optional
 test action). The Settings page shows a card for each enabled one. Secret values (passwords, API keys) are stored in
@@ -207,6 +252,10 @@ the database and never returned by the API: the card shows them as "Saved", with
 | `POST /api/v1/config/devices/test` | Try a device's settings (connects and reads once, saves nothing) |
 | `DELETE /api/v1/config/devices/{id}[?deleteHistory=true]` | Remove a device |
 | `GET /api/v1/plugins` | Installed plugins (device and service), with settings schema and device counts |
+| `GET /api/v1/plugin-packages` | Plugin packages (built in or added; loaded, removed or failed) and whether upload is allowed |
+| `POST /api/v1/plugin-packages` | Add a package (body: the zip; needs `Plugins:AllowUpload`; SolPnl restarts) |
+| `DELETE /api/v1/plugin-packages/{id}` | Remove a package (SolPnl restarts) |
+| `POST /api/v1/plugin-packages/{id}/restore` | Restore a removed built-in package (SolPnl restarts) |
 | `PUT /api/v1/plugins/{id}` | Enable or disable: `{ enabled }` |
 | `GET/PUT /api/v1/plugins/{id}/settings` | A plugin's own settings (secrets never returned; null keeps, "" clears) |
 | `POST /api/v1/plugins/{id}/settings/test` | Run the plugin's test with unsaved values (e.g. send a test email) |

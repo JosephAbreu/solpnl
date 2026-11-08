@@ -1,0 +1,11 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!--
+    Each plugin is a package SolPnl loads at runtime: its build output (the plugin, its plugin.json and every library it
+    uses) is the package. SolPnl.Api copies the built-in ones into its plugins folder.
+  -->
+  <PropertyGroup>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+</Project>
