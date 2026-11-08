@@ -11,6 +11,8 @@ public static class PluginKinds
 }
 
 /// <summary>An installed plugin and whether it's enabled. Disabled device plugins don't poll any of their devices.</summary>
+/// <param name="Settings">For device plugins: the settings each device has.</param>
+/// <param name="HasSettings">The plugin itself has settings (a card on the Settings page), e.g. an email server.</param>
 public sealed record PluginInfo(
     string Id,
     string DisplayName,
@@ -18,7 +20,38 @@ public sealed record PluginInfo(
     string Kind,
     bool Enabled,
     int DeviceCount,
-    IReadOnlyList<SettingField> Settings);
+    IReadOnlyList<SettingField> Settings,
+    bool HasSettings = false);
+
+/// <summary>
+/// A plugin's own settings for the Settings page. Secret values are never returned: <see cref="SecretsSet"/> lists
+/// which secrets have a saved value.
+/// </summary>
+public sealed record PluginSettingsInfo(
+    string PluginId,
+    string DisplayName,
+    IReadOnlyList<SettingField> Fields,
+    IReadOnlyDictionary<string, string?> Values,
+    IReadOnlyList<string> SecretsSet,
+    bool IsConfigured,
+    string? TestLabel);
+
+/// <summary>
+/// Settings to save or test. For secret fields: null (or missing) keeps the saved value, "" clears it, anything else
+/// replaces it. Other fields: empty removes the value.
+/// </summary>
+public sealed record SavePluginSettingsRequest(Dictionary<string, string?> Values);
+
+public sealed record PluginActionResult(bool Ok, string Message);
+
+/// <summary>Which events send notifications (through every enabled, configured notification plugin).</summary>
+public sealed record NotificationPreferences(
+    bool WeatherAlerts = true,
+    bool DeviceOffline = true,
+    int OfflineMinutes = 10,
+    bool SolarUnderperformance = true);
+
+public sealed record NotificationTestResult(bool Ok, IReadOnlyList<PluginActionResult> Results);
 
 public sealed record SetPluginEnabledRequest(bool Enabled);
 

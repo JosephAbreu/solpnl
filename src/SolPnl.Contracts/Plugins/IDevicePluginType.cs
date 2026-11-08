@@ -26,9 +26,11 @@ public enum SettingKind
     Number,
     /// <summary>Never sent back to clients once saved (e.g. passwords, API keys).</summary>
     Secret,
+    /// <summary>One of <see cref="SettingField.Options"/>.</summary>
+    Choice,
 }
 
-/// <summary>Describes one setting of a device type, for validation and for building forms.</summary>
+/// <summary>Describes one setting of a device type or plugin, for validation and for building forms.</summary>
 public sealed record SettingField(
     string Key,
     string Label,
@@ -36,4 +38,5 @@ public sealed record SettingField(
     bool Required = true,
     string? Default = null,
     string? Placeholder = null,
-    string? Help = null);
+    string? Help = null,
+    IReadOnlyList<string>? Options = null);
