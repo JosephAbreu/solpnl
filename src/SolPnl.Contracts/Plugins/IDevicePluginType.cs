@@ -14,6 +14,11 @@ public interface IDevicePluginType : IPlugin
     IReadOnlyList<SettingField> Settings { get; }
 
     /// <summary>
+    /// What this vendor calls one PV input, lower case, as shown in "Solar power · string 1" (e.g. "line" for SRNE).
+    /// </summary>
+    string PvInputName => "string";
+
+    /// <summary>
     /// Creates a device instance from its settings (keys from <see cref="Settings"/>; values are strings as entered).
     /// Must not perform I/O. Throws <see cref="ArgumentException"/> with a user-facing message for invalid settings.
     /// </summary>

@@ -15,6 +15,9 @@ public sealed class SolarmanSrnePluginType : IDevicePluginType
         "SRNE-family hybrid inverters (e.g. Sungoldpower split-phase) through a Solarman WiFi stick logger such as " +
         "the LSW-5, read directly over your network (no cloud).";
 
+    /// <summary>SRNE's display and manuals call each PV input a "line".</summary>
+    public string PvInputName => "line";
+
     public IReadOnlyList<SettingField> Settings { get; } =
     [
         new("host", "Logger address", Placeholder: "192.168.1.50",

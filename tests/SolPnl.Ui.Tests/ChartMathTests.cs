@@ -105,6 +105,15 @@ public class MetricFormatTests
         Assert.Equal(expected, MetricFormat.DisplayName(metric));
 
     [Fact]
+    public void DisplayName_UsesTheVendorsNameForAPvInput()
+    {
+        Assert.Equal("Solar power · line 2", MetricFormat.DisplayName("pv.power.2", "line"));
+        Assert.Equal("Inverter temperature · sensor 3", MetricFormat.DisplayName("inverter.temperature.3", "line"));
+        Assert.Equal("Line 1", MetricFormat.PvInput("line", 1));
+        Assert.Equal("String 2", MetricFormat.PvInput("string", 2));
+    }
+
+    [Fact]
     public void Format_UsesUnitPrecision()
     {
         using var _ = new CultureScope("en-US");
