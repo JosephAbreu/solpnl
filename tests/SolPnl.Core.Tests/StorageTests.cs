@@ -6,6 +6,7 @@ using SolPnl.Contracts.Models;
 using SolPnl.Contracts.Plugins;
 using SolPnl.Core.Backup;
 using SolPnl.Core.Data;
+using SolPnl.Core.Export;
 using SolPnl.Core.Devices;
 using SolPnl.Core.Grid;
 using SolPnl.Core.Notifications;
@@ -787,6 +788,37 @@ public abstract class StorageTests : IAsyncLifetime
         await service.RunOnceAsync();
         Assert.Equal(2, notifier.Sent.Count);
         Assert.Single((await grid.GetHistoryAsync(30)).Events);
+    }
+
+    [Fact]
+    public async Task ExportReadings_OneColumnPerMetric_AcrossWindows_NoDuplicates()
+    {
+        await Migrations().MigrateAsync();
+        var store = Store();
+        var device = new DeviceInfo("inv", "Test", "Fake", null, null);
+        var start = T0.AddMinutes(1);
+        // Every minute for 13 hours (crosses two 6-hour export windows); load only every other poll.
+        var points = 13 * 60;
+        for (var i = 0; i < points; i++)
+        {
+            var at = start.AddMinutes(i);
+            List<Reading> readings = [new("inv", Metrics.PvPower, i, "W", at)];
+            if (i % 2 == 0) readings.Add(new("inv", Metrics.LoadPower, 1000 + i, "W", at));
+            await store.SaveAsync(device, readings);
+        }
+
+        var writer = new StringWriter();
+        await CsvExport.WriteReadingsAsync(writer, store, "inv", [(Metrics.LoadPower, "W"), (Metrics.PvPower, "W")],
+            start, start.AddMinutes(points - 1), HistoryResolution.Raw, TimeZoneInfo.Utc, CancellationToken.None);
+
+        var lines = writer.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal("time,time_utc,load.power (W),pv.power (W)", lines[0]);
+        Assert.Equal(points + 1, lines.Length);
+        Assert.Equal($"{start:yyyy-MM-dd HH:mm:ss},{start.UtcDateTime:yyyy-MM-ddTHH:mm:ssZ},1000,0", lines[1]);
+        Assert.EndsWith(",,1", lines[2]); // no load reading at that poll
+        var times = lines.Skip(1).Select(l => l.Split(',')[1]).ToList();
+        Assert.Equal(times.Count, times.Distinct().Count());
+        Assert.Equal(times.Order(StringComparer.Ordinal), times);
     }
 
     [Fact]
