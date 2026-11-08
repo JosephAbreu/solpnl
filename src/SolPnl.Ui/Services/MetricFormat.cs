@@ -28,6 +28,7 @@ public static class MetricFormat
         [Metrics.InverterCurrent] = "Inverter output current",
         [Metrics.InverterFrequency] = "Inverter output frequency",
         [Metrics.InverterTemperature] = "Inverter temperature",
+        [Metrics.FaultCode] = "Fault code",
         ["vendor.srne.state"] = "Operating state (SRNE)",
         ["vendor.srne.dc_bus_voltage"] = "DC bus voltage (SRNE)",
         [WeatherMetrics.Temperature] = "Outdoor temperature",
@@ -95,7 +96,12 @@ public static class MetricFormat
             var suffix = metric[(lastDot + 1)..];
             if (suffix.Length > 1 && suffix[0] == 'l' && char.IsDigit(suffix[1])) return $"{baseName} · L{suffix[1..]}";
             if (int.TryParse(suffix, out var n))
-                return baseName.StartsWith("Inverter temperature", StringComparison.Ordinal) ? $"{baseName} · sensor {n}" : $"{baseName} · string {n}";
+                return baseName switch
+                {
+                    "Inverter temperature" => $"{baseName} · sensor {n}",
+                    "Fault code" => $"{baseName} · slot {n}",
+                    _ => $"{baseName} · string {n}",
+                };
         }
         return metric;
     }

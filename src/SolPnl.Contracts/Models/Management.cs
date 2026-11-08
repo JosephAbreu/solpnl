@@ -58,7 +58,11 @@ public sealed record NotificationPreferences(
     bool GridOutage = true,
     bool GridVoltage = true,
     double? GridVoltageLow = null,
-    double? GridVoltageHigh = null);
+    double? GridVoltageHigh = null,
+    bool DeviceFaults = true);
+
+/// <summary>A fault a device reports right now: its code and, if the plugin knows it, what it means.</summary>
+public sealed record DeviceFault(int Code, string? Description);
 
 public sealed record NotificationTestResult(bool Ok, IReadOnlyList<PluginActionResult> Results);
 
