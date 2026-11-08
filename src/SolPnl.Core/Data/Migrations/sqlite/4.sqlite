@@ -1,0 +1,16 @@
+-- 4: one row per local day: sun times, forecast (as it stood before the day), actuals
+create table if not exists day_summary (
+    day text not null primary key,
+    sunrise_ms integer null,
+    sunset_ms integer null,
+    forecast_high real null,
+    forecast_low real null,
+    forecast_irradiation real null,
+    clear_sky_irradiation real null,
+    actual_high real null,
+    actual_low real null,
+    solar_wh real null,
+    load_wh real null,
+    grid_wh real null,
+    updated_ms integer not null
+);

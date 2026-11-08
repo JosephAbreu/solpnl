@@ -6,6 +6,8 @@ using SolPnl.Core;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
 using SolPnl.Core.Setup;
+using SolPnl.Plugin.NwsAlerts;
+using SolPnl.Plugin.OpenMeteo;
 using SolPnl.Plugin.Simulator;
 using SolPnl.Plugin.SolarmanSrne;
 
@@ -62,6 +64,16 @@ static WebApplication BuildApp(string[] args, RestartSignal restart)
         builder.Services.AddSingleton<IDevicePluginType, SolarmanSrnePluginType>();
         if (builder.Environment.IsDevelopment())
             builder.Services.AddSingleton<IDevicePluginType, SimulatedInverterPluginType>();
+
+        // Service plugins (weather, alerts). One long-lived HttpClient; pooled connections are recycled so DNS
+        // changes are picked up.
+        var serviceHttp = new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(10) })
+        {
+            Timeout = TimeSpan.FromSeconds(20),
+        };
+        serviceHttp.DefaultRequestHeaders.UserAgent.ParseAdd(NwsAlertProvider.UserAgent);
+        builder.Services.AddSingleton<IWeatherProvider>(new OpenMeteoProvider(serviceHttp));
+        builder.Services.AddSingleton<IWeatherAlertProvider>(new NwsAlertProvider(serviceHttp));
     }
 
     var app = builder.Build();
@@ -90,6 +102,7 @@ static WebApplication BuildApp(string[] args, RestartSignal restart)
     {
         api.MapReadingEndpoints();
         api.MapManagementEndpoints();
+        api.MapSiteEndpoints();
     }
 
     // Unknown API routes get a JSON error instead of the web app's index.html.

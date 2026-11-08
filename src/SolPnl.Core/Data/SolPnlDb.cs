@@ -20,6 +20,7 @@ public sealed class SolPnlDb(DbContextOptions<SolPnlDb> options) : DbContext(opt
     public DbSet<DeviceConfigEntity> DeviceConfigs => Set<DeviceConfigEntity>();
     public DbSet<PluginStateEntity> PluginStates => Set<PluginStateEntity>();
     public DbSet<AppSettingEntity> AppSettings => Set<AppSettingEntity>();
+    public DbSet<DaySummaryEntity> DaySummaries => Set<DaySummaryEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -117,6 +118,25 @@ public sealed class SolPnlDb(DbContextOptions<SolPnlDb> options) : DbContext(opt
             e.Property(x => x.Key).HasColumnName("setting_key").HasMaxLength(100).ValueGeneratedNever();
             e.Property(x => x.Value).HasColumnName("value");
         });
+
+        modelBuilder.Entity<DaySummaryEntity>(e =>
+        {
+            e.ToTable("day_summary");
+            e.HasKey(x => x.Day);
+            e.Property(x => x.Day).HasColumnName("day").HasMaxLength(10).ValueGeneratedNever();
+            e.Property(x => x.SunriseMs).HasColumnName("sunrise_ms");
+            e.Property(x => x.SunsetMs).HasColumnName("sunset_ms");
+            e.Property(x => x.ForecastHigh).HasColumnName("forecast_high");
+            e.Property(x => x.ForecastLow).HasColumnName("forecast_low");
+            e.Property(x => x.ForecastIrradiation).HasColumnName("forecast_irradiation");
+            e.Property(x => x.ClearSkyIrradiation).HasColumnName("clear_sky_irradiation");
+            e.Property(x => x.ActualHigh).HasColumnName("actual_high");
+            e.Property(x => x.ActualLow).HasColumnName("actual_low");
+            e.Property(x => x.SolarWh).HasColumnName("solar_wh");
+            e.Property(x => x.LoadWh).HasColumnName("load_wh");
+            e.Property(x => x.GridWh).HasColumnName("grid_wh");
+            e.Property(x => x.UpdatedMs).HasColumnName("updated_ms");
+        });
     }
 }
 
@@ -211,4 +231,22 @@ public sealed class LatestReadingEntity
     public int MetricId { get; set; }
     public long TimestampMs { get; set; }
     public double Value { get; set; }
+}
+
+/// <summary>One local day (key "yyyy-MM-dd"). Temperatures °C, irradiation kWh/m², energy Wh.</summary>
+public sealed class DaySummaryEntity
+{
+    public required string Day { get; set; }
+    public long? SunriseMs { get; set; }
+    public long? SunsetMs { get; set; }
+    public double? ForecastHigh { get; set; }
+    public double? ForecastLow { get; set; }
+    public double? ForecastIrradiation { get; set; }
+    public double? ClearSkyIrradiation { get; set; }
+    public double? ActualHigh { get; set; }
+    public double? ActualLow { get; set; }
+    public double? SolarWh { get; set; }
+    public double? LoadWh { get; set; }
+    public double? GridWh { get; set; }
+    public long UpdatedMs { get; set; }
 }

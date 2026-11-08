@@ -22,6 +22,8 @@
     <ProjectReference Include="..\SolPnl.Web\SolPnl.Web.csproj" />
     <ProjectReference Include="..\plugins\SolPnl.Plugin.SolarmanSrne\SolPnl.Plugin.SolarmanSrne.csproj" />
     <ProjectReference Include="..\plugins\SolPnl.Plugin.Simulator\SolPnl.Plugin.Simulator.csproj" />
+    <ProjectReference Include="..\plugins\SolPnl.Plugin.OpenMeteo\SolPnl.Plugin.OpenMeteo.csproj" />
+    <ProjectReference Include="..\plugins\SolPnl.Plugin.NwsAlerts\SolPnl.Plugin.NwsAlerts.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,115 @@
+@* Location-aware "today" section: alerts, sun, weather now, forecast vs actual temperatures, insights. *@
+
+@if (Overview is null)
+{
+    return;
+}
+
+@if (Overview.Location is null)
+{
+    <FluentMessageBar Intent="MessageBarIntent.Info" Title="Add your location">
+        <a href="settings">Set where SolPnl is installed</a> to see sunrise and sunset, weather, and solar insights.
+    </FluentMessageBar>
+    return;
+}
+
+@foreach (var alert in Overview.Alerts)
+{
+    <FluentMessageBar Intent="@(alert.Severity is "Extreme" or "Severe" ? MessageBarIntent.Error : MessageBarIntent.Warning)"
+                      Title="@alert.Event">
+        @(alert.Headline ?? alert.Event)
+        @if (alert.Expires is { } until)
+        {
+            <span class="muted"> · until @until.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</span>
+        }
+    </FluentMessageBar>
+}
+
+<section class="today" aria-label="Today at @(Overview.Location.Name ?? "your location")">
+    <div class="panel tile">
+        <div class="tile-label"><FluentIcon Value="@(new Icons.Regular.Size16.WeatherSunny())" Color="Color.Custom" CustomColor="currentColor" /> Sun</div>
+        @if (Overview.Today is { } sun)
+        {
+            <div class="sun-row">
+                <div><span class="small">Sunrise</span><strong>@MetricFormat.Time(sun.Sunrise)</strong></div>
+                <div><span class="small">Sunset</span><strong>@MetricFormat.Time(sun.Sunset)</strong></div>
+            </div>
+            <div class="detail">@MetricFormat.Duration(sun.DayLength) of daylight · solar noon @MetricFormat.Time(sun.SolarNoon)</div>
+        }
+    </div>
+
+    <div class="panel tile">
+        <div class="tile-label"><FluentIcon Value="@(new Icons.Regular.Size16.WeatherPartlyCloudyDay())" Color="Color.Custom" CustomColor="currentColor" /> Weather now</div>
+        @if (Overview.Weather is { } w)
+        {
+            <div class="big">@MetricFormat.Temperature(w.TemperatureC)</div>
+            <div class="detail">
+                @MetricFormat.WeatherText(w.WeatherCode)
+                @if (w.CloudCoverPercent is { } clouds)
+                {
+                    <span> · @clouds.ToString("N0", CultureInfo.CurrentCulture)% clouds</span>
+                }
+                @if (w.WindSpeedKmh is { } wind)
+                {
+                    <span> · wind @Wind(wind)</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="detail">No weather yet@(Overview.WeatherSource is null ? " (is the weather plugin enabled?)" : "")</div>
+        }
+    </div>
+
+    <div class="panel tile">
+        <div class="tile-label"><FluentIcon Value="@(new Icons.Regular.Size16.Temperature())" Color="Color.Custom" CustomColor="currentColor" /> Today's temperatures</div>
+        @if (Overview.TodaySummary is { } day)
+        {
+            <table class="temps">
+                <tr><th scope="row">Forecast</th><td>@MetricFormat.Temperature(day.ForecastHighC) / @MetricFormat.Temperature(day.ForecastLowC)</td></tr>
+                <tr><th scope="row">Actual so far</th><td>@MetricFormat.Temperature(day.ActualHighC) / @MetricFormat.Temperature(day.ActualLowC)</td></tr>
+            </table>
+            <div class="detail">High / low</div>
+        }
+        else
+        {
+            <div class="detail">Collecting today's data…</div>
+        }
+    </div>
+</section>
+
+@if (Overview.Insights.Count > 0)
+{
+    <section class="insights" aria-label="Insights">
+        @foreach (var insight in Overview.Insights)
+        {
+            <div class="panel insight @insight.Level">
+                <div class="insight-title">
+                    @switch (insight.Level)
+                    {
+                        case InsightLevels.Warning:
+                            <FluentIcon Value="@(new Icons.Filled.Size20.Warning())" Color="Color.Custom" CustomColor="#c98500" />
+                            break;
+                        case InsightLevels.Good:
+                            <FluentIcon Value="@(new Icons.Filled.Size20.CheckmarkCircle())" Color="Color.Custom" CustomColor="var(--status-good)" />
+                            break;
+                        default:
+                            <FluentIcon Value="@(new Icons.Regular.Size20.Info())" Color="Color.Custom" CustomColor="var(--colorBrandForeground1)" />
+                            break;
+                    }
+                    <strong>@insight.Title</strong>
+                </div>
+                <p>@insight.Message</p>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public SiteOverview? Overview { get; set; }
+
+    private static string Wind(double kmh) =>
+        MetricFormat.TemperatureUnit == TemperatureUnits.Fahrenheit
+            ? $"{kmh * 0.621371:0} mph"
+            : $"{kmh:0} km/h";
+}

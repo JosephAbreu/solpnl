@@ -1,0 +1,127 @@
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 820px;
+    padding: 20px 24px;
+}
+
+h2 {
+    margin: 0;
+    font-size: var(--fontSizeBase400);
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+.hint {
+    margin: 0;
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+    .hint.error {
+        color: var(--colorPaletteRedForeground1, #c50f1f);
+    }
+
+.field-label {
+    margin-bottom: -6px;
+    font-size: var(--fontSizeBase300);
+    color: var(--colorNeutralForeground1);
+}
+
+.search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+    .search > :first-child {
+        flex: 1;
+        min-width: 0;
+    }
+
+.results {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+    .results button {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 4px 12px;
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid var(--colorNeutralStroke2);
+        border-radius: var(--borderRadiusMedium);
+        background: var(--colorNeutralBackground1);
+        color: var(--colorNeutralForeground1);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+    }
+
+        .results button:hover {
+            background: var(--colorNeutralBackground1Hover);
+        }
+
+        .results button:focus-visible {
+            outline: 2px solid var(--colorStrokeFocus2);
+            outline-offset: 1px;
+        }
+
+    .results span {
+        color: var(--colorNeutralForeground3);
+        font-size: var(--fontSizeBase200);
+    }
+
+    .results .coords {
+        margin-left: auto;
+        font-variant-numeric: tabular-nums;
+    }
+
+.fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: 12px 16px;
+}
+
+    .fields > * {
+        min-width: 0;
+    }
+
+.actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.option {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 1px solid var(--colorNeutralStroke1);
+    border-radius: var(--borderRadiusMedium);
+    cursor: pointer;
+    color: var(--colorNeutralForeground1);
+}
+
+    .option.selected {
+        border-color: var(--colorBrandStroke1);
+        background: var(--colorBrandBackground2);
+    }
+
+    .option input {
+        accent-color: var(--colorBrandBackground);
+    }
