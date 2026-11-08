@@ -95,13 +95,16 @@ The schema is created and updated at startup from numbered SQL scripts in
 Set the location in **Settings**. Then:
 - **Sun times** (sunrise, sunset, solar noon, daylight) and **clear-sky sunlight** are calculated on the machine (NOAA
   solar position formulas), with no network access.
-- **Weather** comes from a weather service plugin (Open-Meteo by default; free, no API key). Current conditions are
-  logged every 15 minutes as readings of the reserved device `site-weather`, so they get history, summaries and charts
+- **Weather** comes from a weather service plugin (Open-Meteo by default; free, no API key). Current conditions
+  (temperature, humidity, cloud, wind, rain, sunlight and sea-level barometric pressure) are logged every 15 minutes as readings of the reserved device `site-weather`, so they get history, summaries and charts
   like device data.
 - **Daily summaries** keep each day's forecast as it stood before the day began, next to what actually happened:
   high/low from the logged weather, and solar/load/grid energy from device readings.
 - **Insights**: tomorrow's solar outlook (kWh, once SolPnl has learned your system from 3 sunny days), the best
   window for heavy loads, and a check that solar output matches the forecast (flags two low sunny days in a row).
+- **Barometric pressure** shows with its 3-hour tendency: rising or falling when it changes by at least 1 hPa
+  (0.03 inHg), "rapidly" from 3 hPa (0.09 inHg). A falling barometer often means a storm is coming.
+- **Units**: US (°F, inHg, mph) or metric (°C, hPa, km/h), chosen in Settings. Values are stored in metric.
 - **Weather alerts** come from the NWS plugin (US only). Disable it on the Plugins page outside the US.
 
 Weather and alert plugins are *service* plugins and can be disabled on the Plugins page; sensors on your network
