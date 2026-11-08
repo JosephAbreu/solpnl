@@ -77,6 +77,42 @@ public sealed class SolPnlApi(HttpClient http)
         return await http.GetFromJsonAsync<List<DaySummary>>(url, Json, ct) ?? [];
     }
 
+    // ---- Plugin settings and notifications -------------------------------------------------------------------
+
+    public async Task<PluginSettingsInfo?> GetPluginSettingsAsync(string pluginId, CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<PluginSettingsInfo>($"api/v1/plugins/{Uri.EscapeDataString(pluginId)}/settings", Json, ct);
+
+    public async Task<ApiResult<PluginSettingsInfo>> SavePluginSettingsAsync(string pluginId, Dictionary<string, string?> values, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync($"api/v1/plugins/{Uri.EscapeDataString(pluginId)}/settings",
+            new SavePluginSettingsRequest(values), Json, ct);
+        return await ReadResultAsync<PluginSettingsInfo>(response, ct);
+    }
+
+    public async Task<PluginActionResult> TestPluginSettingsAsync(string pluginId, Dictionary<string, string?> values, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync($"api/v1/plugins/{Uri.EscapeDataString(pluginId)}/settings/test",
+            new SavePluginSettingsRequest(values), Json, ct);
+        var result = await ReadResultAsync<PluginActionResult>(response, ct);
+        return result.Value ?? new PluginActionResult(false, result.Error ?? "The test failed.");
+    }
+
+    public async Task<NotificationPreferences> GetNotificationPreferencesAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<NotificationPreferences>("api/v1/notifications/preferences", Json, ct) ?? new();
+
+    public async Task<ApiResult<NotificationPreferences>> SetNotificationPreferencesAsync(NotificationPreferences preferences, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync("api/v1/notifications/preferences", preferences, Json, ct);
+        return await ReadResultAsync<NotificationPreferences>(response, ct);
+    }
+
+    public async Task<NotificationTestResult> SendTestNotificationAsync(CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync("api/v1/notifications/test", content: null, ct);
+        var result = await ReadResultAsync<NotificationTestResult>(response, ct);
+        return result.Value ?? new NotificationTestResult(false, [new PluginActionResult(false, result.Error ?? "The test failed.")]);
+    }
+
     // ---- Plugins and device configuration --------------------------------------------------------------------
 
     public async Task<IReadOnlyList<PluginInfo>> GetPluginsAsync(CancellationToken ct = default) =>

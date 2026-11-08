@@ -18,7 +18,7 @@ and alerting on the server, and depends on outside services only when a plugin y
 | `src/plugins/SolPnl.Plugin.OpenMeteo` | Weather service plugin: conditions, forecasts, solar irradiance and place search (open-meteo.com) |
 | `src/plugins/SolPnl.Plugin.NwsAlerts` | Weather alert service plugin: official US watches and warnings (api.weather.gov) |
 | `src/plugins/SolPnl.Plugin.Simulator` | Simulated inverter for development (registered only in the Development environment) |
-| `src/plugins/SolPnl.Plugin.Notify.Smtp` | Email notifications (not implemented yet) |
+| `src/plugins/SolPnl.Plugin.Notify.Smtp` | Email notification plugin (any SMTP server; MailKit) |
 | `tools/SolPnl.Probe` | CLI to verify local access to a Solarman logger and dump raw registers |
 
 ## Requirements
@@ -45,7 +45,8 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
 - **Weather** – sun times, current conditions, today's forecast vs actual temperatures, solar insights, weather charts
   (temperature, sunlight, cloud cover) and a daily history (forecast vs actual, sunlight, solar/load/grid energy).
   The dashboard shows the same "today" section and any active weather alerts.
-- **Settings** – the location (search for a place, or enter coordinates) and temperature unit (°F/°C).
+- **Settings** – the location (search for a place, or enter coordinates), temperature unit (°F/°C), which events send
+  notifications (with a test button), and a card for each enabled plugin that has its own settings (e.g. Email).
 - **Plugins** – installed plugins with their device counts. **Disable** pauses all of a plugin's devices (settings and
   history are kept); **Enable** resumes them.
 
@@ -104,6 +105,20 @@ Set the location in **Settings**. Then:
 Weather and alert plugins are *service* plugins and can be disabled on the Plugins page; sensors on your network
 would be *device* plugins.
 
+## Notifications
+Enable and set up a notification plugin on **Settings** (the **Email (SMTP)** card: server, port, encryption, login,
+from and to; **Send test email** checks it). SolPnl then sends, once per event:
+- severe weather alerts for your location (NWS),
+- a device that stops reporting for N minutes (default 10), and again when it's back,
+- solar output below the forecast on two sunny days in a row.
+
+Choose which on the **Notifications** card. For Gmail, Outlook.com and iCloud use an app password.
+
+## Plugin settings
+Plugins can declare their own settings (`IConfigurablePlugin`: text, number, secret and choice fields, plus an optional
+test action). The Settings page shows a card for each enabled one. Secret values (passwords, API keys) are stored in
+the database and never returned by the API: the card shows them as "Saved", with Change and Remove.
+
 ## API
 | Endpoint | Description |
 |---|---|
@@ -115,6 +130,10 @@ would be *device* plugins.
 | `DELETE /api/v1/config/devices/{id}[?deleteHistory=true]` | Remove a device |
 | `GET /api/v1/plugins` | Installed plugins (device and service), with settings schema and device counts |
 | `PUT /api/v1/plugins/{id}` | Enable or disable: `{ enabled }` |
+| `GET/PUT /api/v1/plugins/{id}/settings` | A plugin's own settings (secrets never returned; null keeps, "" clears) |
+| `POST /api/v1/plugins/{id}/settings/test` | Run the plugin's test with unsaved values (e.g. send a test email) |
+| `GET/PUT /api/v1/notifications/preferences` | Which events notify, offline delay |
+| `POST /api/v1/notifications/test` | Send a test notification through every configured channel |
 | `GET /api/v1/settings` | Location and temperature unit |
 | `PUT /api/v1/settings/location` | `{ name, latitude, longitude, elevationMeters, timeZoneId }` |
 | `GET /api/v1/settings/location/search?q=` | Find places (needs the Open-Meteo plugin) |

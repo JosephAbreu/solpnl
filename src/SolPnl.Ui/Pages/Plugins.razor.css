@@ -62,6 +62,11 @@
         color: var(--colorNeutralForeground3);
     }
 
+.plugin-actions {
+    display: flex;
+    gap: 6px;
+}
+
 .confirm {
     display: flex;
     flex-wrap: wrap;

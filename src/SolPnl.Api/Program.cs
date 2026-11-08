@@ -6,6 +6,7 @@ using SolPnl.Core;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
 using SolPnl.Core.Setup;
+using SolPnl.Plugin.Notify.Smtp;
 using SolPnl.Plugin.NwsAlerts;
 using SolPnl.Plugin.OpenMeteo;
 using SolPnl.Plugin.Simulator;
@@ -74,6 +75,9 @@ static WebApplication BuildApp(string[] args, RestartSignal restart)
         serviceHttp.DefaultRequestHeaders.UserAgent.ParseAdd(NwsAlertProvider.UserAgent);
         builder.Services.AddSingleton<IWeatherProvider>(new OpenMeteoProvider(serviceHttp));
         builder.Services.AddSingleton<IWeatherAlertProvider>(new NwsAlertProvider(serviceHttp));
+
+        // Notification plugins.
+        builder.Services.AddSingleton<INotificationPlugin, SmtpEmailPlugin>();
     }
 
     var app = builder.Build();

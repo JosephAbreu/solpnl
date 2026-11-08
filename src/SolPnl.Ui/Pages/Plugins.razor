@@ -1,5 +1,6 @@
 @page "/plugins"
 @inject SolPnlApi Api
+@inject NavigationManager Nav
 
 <PageTitle>Plugins · SolPnl</PageTitle>
 
@@ -32,10 +33,13 @@
                             <h2>@plugin.DisplayName</h2>
                             <p>@plugin.Description</p>
                             <div class="meta">
-                                <span>@(plugin.Kind == PluginKinds.Device ? "Device plugin" : "Notification plugin")</span>
+                                <span>@KindLabel(plugin.Kind)</span>
                                 <span>·</span>
-                                <span>@plugin.DeviceCount @(plugin.DeviceCount == 1 ? "device" : "devices")</span>
-                                <span>·</span>
+                                @if (plugin.Kind == PluginKinds.Device)
+                                {
+                                    <span>@plugin.DeviceCount @(plugin.DeviceCount == 1 ? "device" : "devices")</span>
+                                    <span>·</span>
+                                }
                                 @if (plugin.Enabled)
                                 {
                                     <span class="state"><FluentIcon Value="@(new Icons.Filled.Size16.CheckmarkCircle())" Color="Color.Custom" CustomColor="var(--status-good)" />Enabled</span>
@@ -47,6 +51,11 @@
                             </div>
                         </div>
                         <div class="plugin-actions">
+                            @if (plugin.Enabled && plugin.HasSettings)
+                            {
+                                <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.Settings())"
+                                              OnClick="@(() => Nav.NavigateTo($"settings#plugin-{plugin.Id}"))">Settings</FluentButton>
+                            }
                             @if (plugin.Enabled)
                             {
                                 <FluentButton Appearance="ButtonAppearance.Outline" Disabled="_busy" OnClick="() => DisableAsync(plugin)">Disable</FluentButton>
@@ -98,6 +107,14 @@
             _error = $"Can't reach SolPnl: {ex.Message}";
         }
     }
+
+    private static string KindLabel(string kind) => kind switch
+    {
+        PluginKinds.Device => "Device plugin",
+        PluginKinds.Service => "Service plugin",
+        PluginKinds.Notification => "Notification plugin",
+        _ => "Plugin",
+    };
 
     private Task DisableAsync(PluginInfo plugin)
     {
