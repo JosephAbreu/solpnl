@@ -102,9 +102,11 @@
 
             _from = from;
             _to = to;
-            _unit = results.Select(r => r.Unit).FirstOrDefault(u => u is not null);
+            // Convert to display units (e.g. °C -> °F) before plotting, so axis, labels and tooltips all agree.
+            var storedUnit = results.Select(r => r.Unit).FirstOrDefault(u => u is not null);
+            _unit = MetricFormat.ToDisplay(0, storedUnit).Unit;
             _resolution = results.Length > 0 ? results[0].Resolution : HistoryResolution.Raw;
-            _series = Series.Zip(results, (spec, r) => new ChartSeries(spec.Name, spec.Color, r.Points))
+            _series = Series.Zip(results, (spec, r) => new ChartSeries(spec.Name, spec.Color, ToDisplay(r.Points, storedUnit)))
                 .Where(s => s.Points.Count > 0 || Series.Count == 1)
                 .ToList();
             _rows = BuildRows(_series);
@@ -119,6 +121,13 @@
             _loading = false;
         }
     }
+
+    private static IReadOnlyList<HistoryPoint> ToDisplay(IReadOnlyList<HistoryPoint> points, string? unit) =>
+        MetricFormat.ToDisplay(0, unit).Unit == unit
+            ? points
+            : points.Select(p => new HistoryPoint(p.Timestamp, MetricFormat.ToDisplay(p.Value, unit).Value,
+                p.Min is { } min ? MetricFormat.ToDisplay(min, unit).Value : null,
+                p.Max is { } max ? MetricFormat.ToDisplay(max, unit).Value : null)).ToList();
 
     /// <summary>Union of timestamps across series, newest first, one column per series.</summary>
     private static List<Row> BuildRows(IReadOnlyList<ChartSeries> series)

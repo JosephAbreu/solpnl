@@ -7,6 +7,7 @@ using SolPnl.Contracts.Plugins;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
 using SolPnl.Core.Setup;
+using SolPnl.Core.Site;
 using SolPnl.Core.Storage;
 using Testcontainers.MariaDb;
 using Testcontainers.MsSql;
@@ -173,6 +174,98 @@ public abstract class StorageTests : IAsyncLifetime
         Assert.False((await registry.TestAsync("fake", new Dictionary<string, string?>())).Ok);
         Assert.False((await registry.TestAsync("nope", new Dictionary<string, string?> { ["id"] = "x" })).Ok);
         Assert.Empty(await registry.GetDevicesAsync()); // testing never saves
+    }
+
+    [Fact]
+    public async Task Site_LogsWeather_KeepsForecast_AndSummarisesTheDay()
+    {
+        await Migrations().MigrateAsync();
+        var settings = new SiteSettingsStore(_factory);
+        Assert.Null(await settings.GetLocationAsync());
+        Assert.Equal(TemperatureUnits.Fahrenheit, await settings.GetTemperatureUnitAsync());
+
+        var changed = 0;
+        settings.LocationChanged += () => changed++;
+        await settings.SetLocationAsync(new SiteLocation("Home", 30.27, -97.74, 150, "America/Chicago"));
+        await settings.SetTemperatureUnitAsync(TemperatureUnits.Celsius);
+        Assert.Equal(1, changed);
+        Assert.Equal("Home", (await settings.GetLocationAsync())!.Name);
+        Assert.Equal(TemperatureUnits.Celsius, await settings.GetTemperatureUnitAsync());
+
+        var weather = new FakeWeather();
+        var store = Store();
+        await using var registry = Registry(new FakeDevicePluginType());
+        var catalog = new PluginCatalog(_factory, registry, [weather], []);
+        var days = new DaySummaryStore(_factory, _time);
+        var site = new SiteService(settings, catalog, days, store, _time, NullLogger<SiteService>.Instance);
+
+        // T0 = 2026-11-07 20:00 UTC = 14:00 CST. One hour of solar at a steady 1,000 W, from 13:00 to 14:00 local.
+        var day = new DateOnly(2026, 11, 7);
+        var solar = new DeviceInfo("fake-a", "Test", "Fake", null, null);
+        for (var s = 0; s < 3600; s += 10)
+            await store.SaveAsync(solar, [new Reading("fake-a", Metrics.PvPower, 1000, "W", T0.AddHours(-1).AddSeconds(s))]);
+
+        // Weather is fetched twice at the same observation time: logged once.
+        weather.Report = FakeWeather.At(T0.AddHours(-1), 18.5);
+        _time.Now = T0.AddHours(-1).AddMinutes(1);
+        await site.RefreshWeatherAsync();
+        weather.Report = FakeWeather.At(T0, 21.0);
+        _time.Now = T0.AddMinutes(5);
+        await site.RefreshWeatherAsync();
+        await site.RefreshWeatherAsync();
+        var temps = await store.GetHistoryAsync(SiteDevices.Weather, WeatherMetrics.Temperature, T0.AddHours(-2), T0.AddHours(1), HistoryResolution.Raw);
+        Assert.Equal([18.5, 21.0], temps.Points.Select(p => p.Value));
+
+        // Today's forecast was missing, so it was filled in; tomorrow's (before the day starts) keeps updating.
+        var today = await days.GetAsync(day);
+        Assert.Equal(22.0, today!.ForecastHighC);
+        weather.Report = FakeWeather.At(T0.AddMinutes(15), 19.0, todayHigh: 30, tomorrowHigh: 15);
+        _time.Now = T0.AddMinutes(16);
+        await site.RefreshWeatherAsync();
+        Assert.Equal(22.0, (await days.GetAsync(day))!.ForecastHighC);                // frozen once the day started
+        Assert.Equal(15.0, (await days.GetAsync(day.AddDays(1)))!.ForecastHighC);     // still updating
+
+        // Summaries: sun times, actual temperatures, energy (from minute summaries).
+        await Maintenance().RunOnceAsync();
+        await site.UpdateDaySummariesAsync();
+        today = await days.GetAsync(day);
+        Assert.NotNull(today!.Sunrise);
+        Assert.Equal(21.0, today.ActualHighC);
+        Assert.Equal(18.5, today.ActualLowC);
+        Assert.InRange(today.SolarKwh!.Value, 0.95, 1.01);
+        Assert.Null(today.GridKwh);
+        Assert.True(today.ClearSkyIrradiationKwhM2 > 4);
+
+        var range = await days.GetRangeAsync(day.AddDays(-1), day.AddDays(1));
+        Assert.Contains(range, d => d.Date == day);
+        Assert.Equal(range.OrderBy(d => d.Date), range);
+
+        var overview = await site.GetOverviewAsync();
+        Assert.Equal("Home", overview.Location!.Name);
+        Assert.Equal(19.0, overview.Weather!.TemperatureC);
+        Assert.Equal(day, overview.Today!.Date);
+        Assert.Contains(overview.Insights, i => i.Kind == InsightKinds.SolarOutlook);
+
+        // Disabling the weather plugin stops weather (the cached report is dropped on the next refresh).
+        await catalog.SetEnabledAsync(FakeWeather.PluginId, false);
+        await site.RefreshWeatherAsync();
+        Assert.Null(site.LastWeather);
+        Assert.Contains(await catalog.GetPluginsAsync(), p => p.Id == FakeWeather.PluginId && !p.Enabled && p.Kind == PluginKinds.Service);
+    }
+
+    private sealed class FakeWeather : IWeatherProvider
+    {
+        public const string PluginId = "fake-weather";
+        public WeatherReport Report { get; set; } = At(DateTimeOffset.UnixEpoch, 0);
+        public string Id => PluginId;
+        public string DisplayName => "Fake weather";
+        public string Description => "Test";
+        public Task<WeatherReport> GetWeatherAsync(SiteLocation location, CancellationToken cancellationToken = default) => Task.FromResult(Report);
+
+        public static WeatherReport At(DateTimeOffset time, double temperature, double todayHigh = 22, double tomorrowHigh = 18) =>
+            new("Fake", new WeatherNow(time, temperature, 50, 20, 5, 0, 300, 1, true), [],
+                [new DailyForecast(new DateOnly(2026, 11, 7), todayHigh, 12, 3.5, 10, 1),
+                 new DailyForecast(new DateOnly(2026, 11, 8), tomorrowHigh, 10, 4.0, 10, 1)], time);
     }
 
     /// <summary>Stands in for the SRNE plugin type (same id and setting keys) without network access.</summary>

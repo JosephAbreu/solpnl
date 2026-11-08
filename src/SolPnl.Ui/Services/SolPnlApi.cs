@@ -41,6 +41,42 @@ public sealed class SolPnlApi(HttpClient http)
         return new SetupResult(false, $"SolPnl answered {(int)response.StatusCode} {response.ReasonPhrase}.");
     }
 
+    // ---- Site: settings, overview, daily summaries -----------------------------------------------------------
+
+    public async Task<SiteSettings> GetSettingsAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<SiteSettings>("api/v1/settings", Json, ct) ?? new SiteSettings(null, TemperatureUnits.Fahrenheit);
+
+    public async Task<ApiResult<SiteLocation>> SetLocationAsync(SiteLocation location, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync("api/v1/settings/location", location, Json, ct);
+        return await ReadResultAsync<SiteLocation>(response, ct);
+    }
+
+    public async Task<ApiResult<bool>> SetTemperatureUnitAsync(string unit, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync("api/v1/settings/units", new SetUnitsRequest(unit), Json, ct);
+        if (response.IsSuccessStatusCode) return new ApiResult<bool>(true, null);
+        return new ApiResult<bool>(false, (await ReadResultAsync<object>(response, ct)).Error);
+    }
+
+    public async Task<ApiResult<List<LocationSearchResult>>> SearchLocationsAsync(string query, CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync($"api/v1/settings/location/search?q={Uri.EscapeDataString(query)}", ct);
+        return await ReadResultAsync<List<LocationSearchResult>>(response, ct);
+    }
+
+    public async Task<SiteOverview?> GetSiteOverviewAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<SiteOverview>("api/v1/site/overview", Json, ct);
+
+    public async Task<IReadOnlyList<DaySummary>> GetDaySummariesAsync(DateOnly? from = null, DateOnly? to = null, CancellationToken ct = default)
+    {
+        var query = new List<string>();
+        if (from is { } f) query.Add($"from={f:yyyy-MM-dd}");
+        if (to is { } t) query.Add($"to={t:yyyy-MM-dd}");
+        var url = "api/v1/site/days" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
+        return await http.GetFromJsonAsync<List<DaySummary>>(url, Json, ct) ?? [];
+    }
+
     // ---- Plugins and device configuration --------------------------------------------------------------------
 
     public async Task<IReadOnlyList<PluginInfo>> GetPluginsAsync(CancellationToken ct = default) =>
