@@ -21,7 +21,7 @@ public sealed record SolarmanSrneOptions
 /// Reads SRNE-family inverters (e.g. Sungoldpower 10kW split phase) through a Solarman V5 WiFi stick logger,
 /// entirely over the local network.
 /// </summary>
-public sealed class SolarmanSrnePlugin : IDevicePlugin, IDeviceFaults, IAsyncDisposable
+public sealed class SolarmanSrnePlugin : IDevicePlugin, IDeviceFaults, IDeviceState, IAsyncDisposable
 {
     private readonly SolarmanSrneOptions _options;
     private readonly SolarmanV5Client _client;
@@ -38,6 +38,10 @@ public sealed class SolarmanSrnePlugin : IDevicePlugin, IDeviceFaults, IAsyncDis
     public string DisplayName => "Solarman logger + SRNE-family inverter";
 
     public string? DescribeFault(int code) => SrneFaults.Describe(code);
+
+    public string StateMetric => SrneRegisterMap.StateMetric;
+
+    public string? DescribeState(int value) => SrneStates.Describe(value);
 
     /// <summary>Clock reported by the inverter on the last successful read (local time, no time zone).</summary>
     public DateTime? LastInverterClock { get; private set; }

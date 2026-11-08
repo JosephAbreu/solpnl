@@ -179,6 +179,28 @@ public class SrneRegisterMapTests
         Assert.Null(SrneFaults.Describe(999));
     }
 
+    [Theory]
+    [InlineData(0, "Power-up delay")]
+    [InlineData(2, "Initialization")]
+    [InlineData(4, "Mains powered")]
+    [InlineData(5, "Inverter powered")]
+    [InlineData(10, "Fault")]
+    public void States_AreDescribedFromSrnesTable(int value, string expected) =>
+        Assert.Equal(expected, SrneStates.Describe(value));
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(11)]
+    public void States_OutsideTheTable_AreUnknown(int value) => Assert.Null(SrneStates.Describe(value));
+
+    [Fact]
+    public async Task Plugin_ReportsItsStateMetric()
+    {
+        await using var plugin = new SolarmanSrnePlugin(new SolarmanSrneOptions { Host = "127.0.0.1", LoggerSerial = 1 });
+        Assert.Equal("vendor.srne.state", plugin.StateMetric);
+        Assert.Equal("Mains powered", plugin.DescribeState(4));
+    }
+
     [Fact]
     public void DecodeClock_ReturnsInverterLocalTime()
     {

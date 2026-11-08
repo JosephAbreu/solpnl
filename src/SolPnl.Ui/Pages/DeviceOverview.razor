@@ -164,6 +164,8 @@
     private List<Reading> _latestRows = [];
     /// <summary>Active faults; null when the device doesn't report faults.</summary>
     private IReadOnlyList<DeviceFault>? _faults;
+    /// <summary>Operating state now; null when the device doesn't report one.</summary>
+    private DeviceOperatingState? _state;
     private DateTimeOffset? _lastReading;
     private TimeRange _range = TimeRange.Last24Hours;
     private string? _selectedMetric;
@@ -184,6 +186,7 @@
         ("Firmware", @<span>@(_device?.Info?.FirmwareVersion ?? "Not reported")</span>),
         ("Device ID", @<span>@DeviceId</span>),
         ("Metrics", @<span>@_latest.Count reported</span>),
+        .. (_state is { } state ? [("State", @<span>@MetricFormat.State(state)</span>)] : Array.Empty<(string, RenderFragment)>()),
         .. (_faults is { } faults ? [("Faults", FaultsFragment(faults))] : Array.Empty<(string, RenderFragment)>()),
     ];
 
@@ -253,6 +256,7 @@
                 _faults = latest.Any(r => r.Metric.StartsWith(Metrics.FaultCode + ".", StringComparison.Ordinal))
                     ? await Api.GetDeviceFaultsAsync(DeviceId, _cts.Token)
                     : null;
+                _state = await Api.GetDeviceStateAsync(DeviceId, _cts.Token);
             }
             _error = null;
         }
