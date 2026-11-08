@@ -109,9 +109,17 @@ $release = Get-Date -Format "yyyyMMdd-HHmmss"
 $publishDir = Join-Path $repo "artifacts/publish/$Runtime"
 $archive = Join-Path $repo "artifacts/solpnl-$release-$Runtime.tar.gz"
 
-Write-Host "==> Publishing $Runtime (self-contained)"
+# Version shown on the About page: {year}.{month}.{commit count}, plus the commit it was built from. A build with
+# uncommitted changes is marked "+modified", so it's clear the release doesn't match any commit exactly.
+$commitCount = (git -C $repo rev-list --count HEAD).Trim()
+$commit = (git -C $repo rev-parse --short=12 HEAD).Trim()
+$version = "{0:yyyy}.{0:MM}.{1}" -f (Get-Date), $commitCount
+$informational = if (git -C $repo status --porcelain) { "$version+modified" } else { $version }
+
+Write-Host "==> Publishing $Runtime (self-contained), version $informational ($commit)"
 if (Test-Path $publishDir) { Remove-Item -Recurse -Force $publishDir }
-dotnet publish (Join-Path $repo "src/SolPnl.Api/SolPnl.Api.csproj") -c Release -r $Runtime --self-contained true -o $publishDir -p:DebugType=none -nologo
+dotnet publish (Join-Path $repo "src/SolPnl.Api/SolPnl.Api.csproj") -c Release -r $Runtime --self-contained true -o $publishDir -p:DebugType=none -nologo `
+    "-p:Version=$version" "-p:InformationalVersion=$informational" "-p:SolPnlCommit=$commit"
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed." }
 
 # Never ship machine-specific settings or local databases from the dev machine.

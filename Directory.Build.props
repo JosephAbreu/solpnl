@@ -1,0 +1,17 @@
+<Project>
+  <!--
+    SolPnl version, shown on the About page: {year}.{month}.{build}.
+    deploy/deploy.ps1 overrides these (-p:Version, -p:InformationalVersion, -p:SolPnlCommit) for each release;
+    "+local" marks a build run from source.
+  -->
+  <PropertyGroup>
+    <Version>2026.11.0</Version>
+    <InformationalVersion>2026.11.0+local</InformationalVersion>
+    <!-- Otherwise the SDK appends the git commit SHA to InformationalVersion; the commit is recorded separately. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(SolPnlCommit)' != ''">
+    <AssemblyMetadata Include="Commit" Value="$(SolPnlCommit)" />
+  </ItemGroup>
+</Project>
