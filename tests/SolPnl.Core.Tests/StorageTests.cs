@@ -652,6 +652,73 @@ public abstract class StorageTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DeviceFaults_RaiseOneAlertPerCode_AndClearWhenGone()
+    {
+        await Migrations().MigrateAsync();
+        var settings = new SiteSettingsStore(_factory);
+        var notifier = new FakeNotifier();
+        var store = Store();
+        await using var registry = Registry(new FakeDevicePluginType());
+        await registry.InitializeAsync(EmptyConfig());
+        var catalog = new PluginCatalog(_factory, registry, [], [], [notifier]);
+        var pluginSettings = new PluginSettingsStore(_factory);
+        var site = new SiteService(settings, catalog, new DaySummaryStore(_factory, _time), store, _time, NullLogger<SiteService>.Instance);
+        var grid = new GridMonitor(_factory, store, _time);
+        var service = new NotificationService(_factory, catalog, pluginSettings, registry, store, site, grid, _time, NullLogger<NotificationService>.Instance);
+        await pluginSettings.SaveAsync(notifier, new SavePluginSettingsRequest(new() { ["target"] = "me" }));
+        await service.SetPreferencesAsync(new NotificationPreferences(WeatherAlerts: false, SolarUnderperformance: false));
+
+        await registry.AddAsync(new AddDeviceRequest("Inverter", "fake", new() { ["id"] = "a" }));
+        var device = new DeviceInfo("fake-a", "Test", "Fake", null, null);
+        async Task Poll(DateTimeOffset at, params int[] codes)
+        {
+            var readings = Enumerable.Range(0, 4)
+                .Select(i => new Reading("fake-a", Metrics.ForString(Metrics.FaultCode, i + 1), i < codes.Length ? codes[i] : 0, "", at))
+                .Append(new Reading("fake-a", Metrics.ForPhase(Metrics.GridVoltage, 1), 121, "V", at))
+                .Append(new Reading("fake-a", Metrics.ForPhase(Metrics.GridVoltage, 2), 121, "V", at))
+                .ToList();
+            await store.SaveAsync(device, readings);
+            _time.Now = at.AddSeconds(5);
+            await service.RunOnceAsync();
+        }
+
+        var start = T0.AddMinutes(5);
+        await Poll(start);
+        Assert.Empty(notifier.Sent);
+
+        // Two faults at once: one alert each, named by the plugin where it can.
+        await Poll(start.AddSeconds(10), 9, 41);
+        Assert.Equal(2, notifier.Sent.Count);
+        Assert.Equal("Inverter: fault 09: PV voltage too high", notifier.Sent[0].Title);
+        Assert.Equal(AlertSeverity.Critical, notifier.Sent[0].Severity);
+        Assert.Equal("Inverter: fault 41", notifier.Sent[1].Title);
+        Assert.Contains("no description", notifier.Sent[1].Message);
+
+        // Still there: no repeats. Then 41 clears.
+        await Poll(start.AddSeconds(20), 41, 9);
+        Assert.Equal(2, notifier.Sent.Count);
+        await Poll(start.AddSeconds(30), 9);
+        Assert.Equal(3, notifier.Sent.Count);
+        Assert.Equal("Inverter: fault 41 cleared", notifier.Sent[^1].Title);
+
+        // The device goes quiet: stale readings neither clear nor raise anything.
+        _time.Now = start.AddMinutes(15);
+        await service.RunOnceAsync();
+        Assert.Equal(4, notifier.Sent.Count); // the offline alert
+        Assert.Contains("offline", notifier.Sent[^1].Title);
+
+        // Back with no faults: 09 clears.
+        await Poll(start.AddMinutes(16));
+        Assert.Contains(notifier.Sent, a => a.Title == "Inverter: fault 09: PV voltage too high cleared");
+
+        // Turned off: nothing raised.
+        await service.SetPreferencesAsync(new NotificationPreferences(WeatherAlerts: false, SolarUnderperformance: false, DeviceFaults: false));
+        var before = notifier.Sent.Count;
+        await Poll(start.AddMinutes(17), 14);
+        Assert.Equal(before, notifier.Sent.Count);
+    }
+
+    [Fact]
     public async Task GridOutage_RaisesAlerts_RecordsEvents_AndSuppressesOffline()
     {
         await Migrations().MigrateAsync();

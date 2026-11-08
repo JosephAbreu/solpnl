@@ -157,6 +157,8 @@
     private string Subtitle => _device?.Info is { } info ? $"{info.Vendor} · {info.Model}" : _device?.PluginName ?? "Device";
     private Dictionary<string, Reading> _latest = [];
     private List<Reading> _latestRows = [];
+    /// <summary>Active faults; null when the device doesn't report faults.</summary>
+    private IReadOnlyList<DeviceFault>? _faults;
     private DateTimeOffset? _lastReading;
     private TimeRange _range = TimeRange.Last24Hours;
     private string? _selectedMetric;
@@ -177,7 +179,18 @@
         ("Firmware", @<span>@(_device?.Info?.FirmwareVersion ?? "Not reported")</span>),
         ("Device ID", @<span>@DeviceId</span>),
         ("Metrics", @<span>@_latest.Count reported</span>),
+        .. (_faults is { } faults ? [("Faults", FaultsFragment(faults))] : Array.Empty<(string, RenderFragment)>()),
     ];
+
+    private static RenderFragment FaultsFragment(IReadOnlyList<DeviceFault> faults) =>
+        faults.Count == 0
+            ? @<span>None</span>
+            : @<span class="faults">
+                @foreach (var f in faults)
+                {
+                    <span class="fault"><SeverityIcon Severity="critical" />@(f.Description is null ? $"Fault {f.Code:00}" : $"Fault {f.Code:00}: {f.Description}")</span>
+                }
+              </span>;
 
     protected override async Task OnInitializedAsync()
     {
@@ -224,6 +237,9 @@
                 _latest = latest.ToDictionary(r => r.Metric);
                 _latestRows = latest.OrderBy(r => r.Metric, StringComparer.Ordinal).ToList();
                 _lastReading = latest.Count > 0 ? latest.Max(r => r.Timestamp) : null;
+                _faults = latest.Any(r => r.Metric.StartsWith(Metrics.FaultCode + ".", StringComparison.Ordinal))
+                    ? await Api.GetDeviceFaultsAsync(DeviceId, _cts.Token)
+                    : null;
             }
             _error = null;
         }
