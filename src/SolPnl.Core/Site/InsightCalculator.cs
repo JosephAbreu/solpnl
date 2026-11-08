@@ -30,7 +30,8 @@ public static class InsightCalculator
         IReadOnlyList<HourlyForecast> Hourly,
         DailyForecast? TomorrowForecast,
         double TomorrowClearSkyIrradiation,
-        IReadOnlyList<DaySummary> PastDays);
+        IReadOnlyList<DaySummary> PastDays,
+        string PvInputName = "string");
 
     public static IReadOnlyList<Insight> Compute(Inputs inputs)
     {
@@ -39,7 +40,7 @@ public static class InsightCalculator
 
         if (SolarOutlook(inputs, factor) is { } outlook) insights.Add(outlook);
         if (BestTimeForHeavyLoads(inputs, factor) is { } best) insights.Add(best);
-        if (Performance(inputs.PastDays) is { } performance) insights.Add(performance);
+        if (Performance(inputs.PastDays, inputs.PvInputName) is { } performance) insights.Add(performance);
         return insights;
     }
 
@@ -115,7 +116,7 @@ public static class InsightCalculator
             "to use solar instead of grid power.");
     }
 
-    private static Insight? Performance(IReadOnlyList<DaySummary> pastDays)
+    private static Insight? Performance(IReadOnlyList<DaySummary> pastDays, string pvInputName)
     {
         var days = Qualifying(pastDays).ToList(); // newest first
         if (days.Count < MinDaysForPerformanceCheck) return null;
@@ -127,7 +128,7 @@ public static class InsightCalculator
         if (latest < UnderperformanceRatio && previous < UnderperformanceRatio)
             return new Insight(InsightKinds.Underperformance, InsightLevels.Warning, "Solar below forecast",
                 S($"Solar output was {1 - latest:P0} and {1 - previous:P0} below what the weather forecast predicted on the last two ") +
-                $"sunny days ({Day(days[0].Date)}, {Day(days[1].Date)}). Check the panels for dirt or new shading, and both PV strings for a fault.");
+                $"sunny days ({Day(days[0].Date)}, {Day(days[1].Date)}). Check the panels for dirt or new shading, and both PV {pvInputName}s for a fault.");
 
         if (latest < UnderperformanceRatio)
             return new Insight(InsightKinds.Underperformance, InsightLevels.Info, "Solar a bit below forecast",

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using SolPnl.Contracts.Models;
+using SolPnl.Core.Devices;
 using SolPnl.Core.Storage;
 
 namespace SolPnl.Core.Site;
@@ -15,7 +16,8 @@ public sealed class SiteService(
     DaySummaryStore days,
     IReadingStore store,
     TimeProvider time,
-    ILogger<SiteService> logger)
+    ILogger<SiteService> logger,
+    DeviceRegistry? devices = null)
 {
     private volatile WeatherReport? _weather;
     private volatile IReadOnlyList<WeatherAlert> _alerts = [];
@@ -143,7 +145,7 @@ public sealed class SiteService(
         var insights = InsightCalculator.Compute(new InsightCalculator.Inputs(
             now, zone, sunToday, sunTomorrow, weather?.Hourly ?? [], tomorrowForecast,
             SunCalculator.ClearSkyIrradiation(today.AddDays(1), location.Latitude, location.Longitude, zone),
-            pastDays));
+            pastDays, devices?.PvInputName ?? "string"));
 
         var pressureHistory = await store.GetHistoryAsync(SiteDevices.Weather, WeatherMetrics.Pressure,
             now.AddHours(-4), now, HistoryResolution.Raw, ct);

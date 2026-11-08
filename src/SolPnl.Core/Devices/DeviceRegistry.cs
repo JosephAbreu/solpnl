@@ -48,6 +48,22 @@ public sealed class DeviceRegistry : IAsyncDisposable
 
     public IReadOnlyCollection<IDevicePluginType> PluginTypes => _types.Values;
 
+    /// <summary>
+    /// What the active devices' vendor calls a PV input (e.g. "line" for SRNE); "string" when there are none, or
+    /// devices from vendors with different words are active.
+    /// </summary>
+    public string PvInputName
+    {
+        get
+        {
+            var names = _active
+                .Select(d => _types.TryGetValue(d.Plugin.Id, out var t) ? t.PvInputName : "string")
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            return names.Count == 1 ? names[0] : "string";
+        }
+    }
+
     /// <summary>Imports a pre-UI "Plugins" config section once, then starts the configured devices.</summary>
     public async Task InitializeAsync(IConfiguration configuration, CancellationToken cancellationToken = default)
     {
