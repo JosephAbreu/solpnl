@@ -32,6 +32,8 @@
                              Series="@([new(WeatherMetrics.Irradiance, "Sunlight", SeriesColors.Slot2)])" />
             <MetricChartCard Title="Cloud cover" DeviceId="@SiteDevices.Weather" Range="_range" RefreshKey="_refresh"
                              Series="@([new(WeatherMetrics.CloudCover, "Cloud cover", SeriesColors.Slot1)])" />
+            <MetricChartCard Title="Barometric pressure" DeviceId="@SiteDevices.Weather" Range="_range" RefreshKey="_refresh" ZeroBaseline="false"
+                             Series="@([new(WeatherMetrics.Pressure, "Pressure", SeriesColors.Slot1)])" />
         </div>
 
         <section class="panel days" aria-labelledby="days-heading">
