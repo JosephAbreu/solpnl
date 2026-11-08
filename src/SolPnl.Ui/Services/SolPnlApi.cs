@@ -263,6 +263,9 @@ public sealed class SolPnlApi(HttpClient http)
     public async Task<IReadOnlyList<DeviceInfo>> GetDevicesAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<DeviceInfo>>("api/v1/devices", Json, ct) ?? [];
 
+    public async Task<IReadOnlyList<DeviceFault>> GetDeviceFaultsAsync(string deviceId, CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<DeviceFault>>($"api/v1/devices/{Uri.EscapeDataString(deviceId)}/faults", Json, ct) ?? [];
+
     public async Task<IReadOnlyList<Reading>> GetLatestAsync(string? deviceId = null, CancellationToken ct = default)
     {
         var url = deviceId is null ? "api/v1/readings/latest" : $"api/v1/readings/latest?device={Uri.EscapeDataString(deviceId)}";

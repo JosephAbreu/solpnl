@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Microsoft.EntityFrameworkCore;
 using SolPnl.Contracts.Models;
 using SolPnl.Core.Data;
+using SolPnl.Core.Devices;
 using SolPnl.Core.Setup;
 using SolPnl.Core.Storage;
 
@@ -77,6 +78,18 @@ public static class Endpoints
     {
         api.MapGet("/devices", (IReadingStore store, CancellationToken ct) => store.GetDevicesAsync(ct))
            .WithName("GetDevices");
+
+        // Faults the device reports right now (empty if none, or if it doesn't report faults), described by its plugin.
+        api.MapGet("/devices/{deviceId}/faults", async (string deviceId, IReadingStore store, DeviceRegistry registry,
+               TimeProvider time, CancellationToken ct) =>
+           {
+               var latest = await store.GetLatestAsync(deviceId, ct);
+               var plugin = registry.ActiveDevices.FirstOrDefault(d => d.DeviceKey == deviceId)?.Plugin;
+               return (DeviceFaults.Active(latest, time.GetUtcNow()) ?? [])
+                   .Select(code => new DeviceFault(code, DeviceFaults.Describe(plugin, code)))
+                   .ToList();
+           })
+           .WithName("GetDeviceFaults");
 
         api.MapGet("/readings/latest", (string? device, IReadingStore store, CancellationToken ct) =>
                store.GetLatestAsync(device, ct))

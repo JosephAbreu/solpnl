@@ -157,6 +157,12 @@ public sealed class NotificationService(
             }
         }
 
+        if (prefs.DeviceFaults)
+        {
+            foreach (var device in devices.ActiveDevices)
+                await FaultAlertsAsync(device, now, ct);
+        }
+
         if (prefs.SolarUnderperformance && now >= _nextInsightCheck)
         {
             _nextInsightCheck = now + InsightCheckInterval;
@@ -177,6 +183,47 @@ public sealed class NotificationService(
             await using var db = await dbFactory.CreateDbContextAsync(ct);
             var cutoff = (now - HistoryRetention).ToUnixTimeMilliseconds();
             await db.Database.ExecuteSqlAsync($"delete from alert_history where raised_ms < {cutoff}", ct);
+        }
+    }
+
+    /// <summary>
+    /// One alert per fault code a device reports, raised when it appears and cleared when it goes. Skipped while the
+    /// device's readings are stale (offline) or a grid outage is open: an inverter without a battery shuts down with
+    /// the grid, and the outage alert already explains that.
+    /// </summary>
+    private async Task FaultAlertsAsync(ActiveDevice device, DateTimeOffset now, CancellationToken ct)
+    {
+        if (grid.HasOutage(device.DeviceKey)) return;
+        var latest = await store.GetLatestAsync(device.DeviceKey, ct);
+        if (DeviceFaults.Active(latest, now) is not { } active) return;
+
+        var prefix = $"fault:{device.DeviceKey}:";
+        foreach (var code in active)
+        {
+            var key = prefix + code.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var description = DeviceFaults.Describe(device.Plugin, code);
+            var what = description is null
+                ? $"fault code {code:00}, which SolPnl has no description for"
+                : $"fault code {code:00} ({description})";
+            await RaiseAsync(key, AlertCategories.Device, new Alert(key, AlertSeverity.Critical,
+                $"{device.Name}: {DeviceFaults.Label(code, description)}",
+                $"{device.Name} reports {what}. Check the inverter's display, and its manual for what the code means and what to do.",
+                now, device.DeviceKey), ct);
+        }
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var open = await db.NotificationLog.AsNoTracking()
+            .Where(n => n.ClearedMs == null && n.EventKey.StartsWith(prefix))
+            .Select(n => n.EventKey)
+            .ToListAsync(ct);
+        foreach (var key in open)
+        {
+            if (!int.TryParse(key.AsSpan(prefix.Length), System.Globalization.CultureInfo.InvariantCulture, out var code) || active.Contains(code))
+                continue;
+            var description = DeviceFaults.Describe(device.Plugin, code);
+            await ClearAsync(key, AlertCategories.Device, new Alert(key, AlertSeverity.Info,
+                $"{device.Name}: {DeviceFaults.Label(code, description)} cleared",
+                $"{device.Name} no longer reports fault code {code:00}.", now, device.DeviceKey), ct);
         }
     }
 

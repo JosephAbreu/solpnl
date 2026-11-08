@@ -82,6 +82,11 @@ public static class Metrics
     public const string InverterCurrent = "inverter.current";     // A, AC output
     public const string InverterFrequency = "inverter.frequency"; // Hz, AC output
     public const string InverterTemperature = "inverter.temperature"; // °C
+    /// <summary>
+    /// An active fault code, per fault slot ("fault.code.1", "fault.code.2", ...); 0 when the slot is empty. A device
+    /// plugin can describe its codes with <see cref="Plugins.IDeviceFaults"/>.
+    /// </summary>
+    public const string FaultCode = "fault.code";
 
     /// <summary>Per-PV-string metric, e.g. ForString(PvPower, 1) => "pv.power.1".</summary>
     public static string ForString(string metric, int stringNumber) => $"{metric}.{stringNumber}";
