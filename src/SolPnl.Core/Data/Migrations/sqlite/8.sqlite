@@ -1,0 +1,10 @@
+-- 8: grid events (outages, low/high voltage) seen from devices that report grid voltage
+create table if not exists grid_event (
+    id integer primary key autoincrement,
+    device_key text not null,
+    kind text not null,
+    started_ms integer not null,
+    ended_ms integer null,
+    extreme_value real null
+);
+create index if not exists ix_grid_event_started on grid_event (started_ms);

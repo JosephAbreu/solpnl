@@ -1,5 +1,6 @@
 using SolPnl.Contracts.Models;
 using SolPnl.Core.Devices;
+using SolPnl.Core.Grid;
 using SolPnl.Core.Notifications;
 using SolPnl.Core.Site;
 using SolPnl.Core.Storage;
@@ -92,6 +93,9 @@ public static class ManagementEndpoints
         api.MapGet("/alerts", (string? category, int? limit, long? before, NotificationService service, CancellationToken ct) =>
                 service.GetAlertsAsync(category, limit ?? 50, before, ct))
             .WithName("GetAlerts");
+
+        api.MapGet("/grid/events", (int? days, GridMonitor grid, CancellationToken ct) => grid.GetHistoryAsync(days ?? 30, ct))
+            .WithName("GetGridEvents");
 
         var config = api.MapGroup("/config/devices");
 

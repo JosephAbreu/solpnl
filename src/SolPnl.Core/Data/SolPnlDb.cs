@@ -24,6 +24,7 @@ public sealed class SolPnlDb(DbContextOptions<SolPnlDb> options) : DbContext(opt
     public DbSet<PluginSettingEntity> PluginSettings => Set<PluginSettingEntity>();
     public DbSet<NotificationLogEntity> NotificationLog => Set<NotificationLogEntity>();
     public DbSet<AlertHistoryEntity> AlertHistory => Set<AlertHistoryEntity>();
+    public DbSet<GridEventEntity> GridEvents => Set<GridEventEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -175,6 +176,18 @@ public sealed class SolPnlDb(DbContextOptions<SolPnlDb> options) : DbContext(opt
             e.Property(x => x.Delivery).HasColumnName("delivery");
             e.Property(x => x.Attempts).HasColumnName("attempts");
         });
+
+        modelBuilder.Entity<GridEventEntity>(e =>
+        {
+            e.ToTable("grid_event");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.DeviceKey).HasColumnName("device_key").HasMaxLength(200);
+            e.Property(x => x.Kind).HasColumnName("kind").HasMaxLength(20);
+            e.Property(x => x.StartedMs).HasColumnName("started_ms");
+            e.Property(x => x.EndedMs).HasColumnName("ended_ms");
+            e.Property(x => x.ExtremeValue).HasColumnName("extreme_value");
+        });
     }
 }
 
@@ -319,4 +332,18 @@ public sealed class AlertHistoryEntity
     public long? DeliveredMs { get; set; }
     public string? Delivery { get; set; }
     public int Attempts { get; set; }
+}
+
+/// <summary>
+/// A grid outage or a spell of low/high grid voltage, seen by one device. <see cref="ExtremeValue"/> is the lowest
+/// (outage, low) or highest (high) leg voltage seen during it. Open while <see cref="EndedMs"/> is null.
+/// </summary>
+public sealed class GridEventEntity
+{
+    public long Id { get; set; }
+    public required string DeviceKey { get; set; }
+    public required string Kind { get; set; }
+    public long StartedMs { get; set; }
+    public long? EndedMs { get; set; }
+    public double? ExtremeValue { get; set; }
 }

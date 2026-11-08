@@ -1,0 +1,11 @@
+-- 8: grid events (outages, low/high voltage) seen from devices that report grid voltage (MySQL and MariaDB)
+create table if not exists grid_event (
+    id bigint not null auto_increment,
+    device_key varchar(200) not null,
+    kind varchar(20) not null,
+    started_ms bigint not null,
+    ended_ms bigint null,
+    extreme_value double null,
+    primary key (id),
+    key ix_grid_event_started (started_ms)
+) engine = InnoDB default character set utf8mb4 collate utf8mb4_unicode_ci;

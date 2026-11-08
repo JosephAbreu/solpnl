@@ -44,13 +44,21 @@ public sealed record SavePluginSettingsRequest(Dictionary<string, string?> Value
 
 public sealed record PluginActionResult(bool Ok, string Message);
 
-/// <summary>Which events send notifications (through every enabled, configured notification plugin).</summary>
+/// <summary>
+/// Which events send notifications (through every enabled, configured notification plugin).
+/// <see cref="GridVoltageLow"/>/<see cref="GridVoltageHigh"/>: per-leg limits in volts; null = automatic
+/// (106–127 V for 120 V service, 207–253 V for 230 V).
+/// </summary>
 public sealed record NotificationPreferences(
     bool WeatherAlerts = true,
     bool DeviceOffline = true,
     int OfflineMinutes = 10,
     bool SolarUnderperformance = true,
-    bool BackupFailed = true);
+    bool BackupFailed = true,
+    bool GridOutage = true,
+    bool GridVoltage = true,
+    double? GridVoltageLow = null,
+    double? GridVoltageHigh = null);
 
 public sealed record NotificationTestResult(bool Ok, IReadOnlyList<PluginActionResult> Results);
 
@@ -82,6 +90,9 @@ public static class AlertCategories
     public const string Device = "device";
     public const string Solar = "solar";
     public const string Test = "test";
+
+    /// <summary>Grid power outages and out-of-range grid voltage.</summary>
+    public const string Grid = "grid";
 
     /// <summary>SolPnl itself, e.g. a backup that failed.</summary>
     public const string System = "system";
@@ -118,3 +129,20 @@ public sealed record AlertEntry(
 public sealed record ActiveAlert(string Category, string Severity, string Title, DateTimeOffset Since, long? EntryId);
 
 public sealed record AlertsPage(IReadOnlyList<ActiveAlert> Active, IReadOnlyList<AlertEntry> History, bool HasMore);
+
+/// <summary>Kinds of <see cref="GridEvent"/>.</summary>
+public static class GridEventKinds
+{
+    public const string Outage = "outage";
+    public const string Low = "low";
+    public const string High = "high";
+}
+
+/// <summary>
+/// A grid outage or spell of low/high voltage. <see cref="Extreme"/> is the lowest (outage, low) or highest (high)
+/// leg voltage seen. <see cref="EndedAt"/> is null while it's still going on.
+/// </summary>
+public sealed record GridEvent(long Id, string DeviceId, string Kind, DateTimeOffset StartedAt, DateTimeOffset? EndedAt, double? Extreme);
+
+/// <summary>Grid events in a period, newest first, with outage totals.</summary>
+public sealed record GridHistory(IReadOnlyList<GridEvent> Events, int Outages, double OutageMinutes, int Days);
