@@ -9,6 +9,8 @@
                 Icon="@(new Icons.Regular.Size24.DataBarVertical())" Breadcrumbs="@([("Home", ""), ("Reports", null)])">
         <Commands>
             <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowClockwise())" OnClick="LoadAsync">Refresh</FluentButton>
+            <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowDownload())" OnClick="DownloadCsv"
+                          Disabled="@(_report is null)" Title="Every day in this period, as a spreadsheet file (CSV)">Download CSV</FluentButton>
         </Commands>
     </PageHeader>
 
@@ -226,6 +228,18 @@
         {
             _loading = false;
         }
+    }
+
+    /// <summary>The daily summaries for the period shown; the attachment downloads without leaving the page.</summary>
+    private void DownloadCsv()
+    {
+        var query = _report switch
+        {
+            { Year: { } y, Month: { } m } => $"?from={new DateOnly(y, m, 1):yyyy-MM-dd}&to={new DateOnly(y, m, 1).AddMonths(1).AddDays(-1):yyyy-MM-dd}",
+            { Year: { } y } => $"?from={y}-01-01&to={y}-12-31",
+            _ => "",
+        };
+        Nav.NavigateTo($"api/v1/export/days.csv{query}", forceLoad: true);
     }
 
     private static string Href(int? year, int? month) =>

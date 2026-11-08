@@ -11,6 +11,11 @@
                 Breadcrumbs="@([("Home", ""), ("Devices", "devices"), (Title, null)])">
         <Commands>
             <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowClockwise())" OnClick="RefreshAsync">Refresh</FluentButton>
+            @if (_latest.Count > 0)
+            {
+                <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowDownload())" OnClick="DownloadCsv"
+                              Title="@($"Every metric for the {_range.Label.ToLowerInvariant()}, as a spreadsheet file (CSV)")">Download CSV</FluentButton>
+            }
             @if (_device is { IsConfigured: true })
             {
                 <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.Delete())" OnClick="() => _confirmRemove = true">Remove</FluentButton>
@@ -199,6 +204,14 @@
     }
 
     protected override void OnParametersSet() => _range = TimeRange.FromKey(RangeKey);
+
+    /// <summary>Readings for the selected time range; the attachment downloads without leaving the page.</summary>
+    private void DownloadCsv()
+    {
+        var to = DateTimeOffset.UtcNow;
+        string Utc(DateTimeOffset t) => t.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+        Nav.NavigateTo($"api/v1/export/readings.csv?device={Uri.EscapeDataString(DeviceId)}&from={Utc(to - _range.Span)}&to={Utc(to)}", forceLoad: true);
+    }
 
     private void SetRange(TimeRange range) => Nav.NavigateTo(Nav.GetUriWithQueryParameter("range", range.Key));
 
