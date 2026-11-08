@@ -1,0 +1,101 @@
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 820px;
+    padding: 20px 24px;
+    scroll-margin-top: 16px;
+}
+
+.head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+h2 {
+    margin: 0;
+    font-size: var(--fontSizeBase400);
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+.state {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground1);
+}
+
+    .state.muted {
+        color: var(--colorNeutralForeground3);
+    }
+
+.hint {
+    margin: 2px 0 0;
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+.fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+    gap: 14px 20px;
+}
+
+    .fields > * {
+        min-width: 0;
+    }
+
+.full {
+    grid-column: 1 / -1;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.field-label {
+    font-size: var(--fontSizeBase300);
+    color: var(--colorNeutralForeground1);
+}
+
+select {
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--colorNeutralStroke1);
+    border-bottom-color: var(--colorNeutralStrokeAccessible);
+    border-radius: var(--borderRadiusMedium);
+    background: var(--colorNeutralBackground1);
+    color: var(--colorNeutralForeground1);
+    font: inherit;
+}
+
+    select:focus-visible {
+        outline: 2px solid var(--colorStrokeFocus2);
+        outline-offset: 1px;
+    }
+
+.secret-saved {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 32px;
+    color: var(--colorNeutralForeground2);
+}
+
+    .secret-saved > span {
+        margin-right: 8px;
+    }
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}

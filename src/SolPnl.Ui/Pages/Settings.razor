@@ -4,7 +4,7 @@
 <PageTitle>Settings · SolPnl</PageTitle>
 
 <div class="page">
-    <PageHeader Title="Settings" Subtitle="Location and display preferences" Icon="@(new Icons.Regular.Size24.Settings())"
+    <PageHeader Title="Settings" Subtitle="Location, units, notifications and plugin settings" Icon="@(new Icons.Regular.Size24.Settings())"
                 Breadcrumbs="@([("Home", ""), ("Settings", null)])" />
 
     @if (_loadError is not null)
@@ -82,6 +82,19 @@
             <p class="hint error">@_unitError</p>
         }
     </section>
+
+    <NotificationsCard />
+
+    @* One card per enabled plugin that has its own settings (e.g. Email). Disabled plugins have no card. *@
+    @foreach (var plugin in _configurable)
+    {
+        <PluginSettingsCard @key="plugin.Id" PluginId="@plugin.Id" Description="@plugin.Description" />
+    }
+    @if (_disabledWithSettings.Count > 0)
+    {
+        <p class="hint">Settings for disabled plugins (@string.Join(", ", _disabledWithSettings.Select(p => p.DisplayName))) appear here
+            when you enable them on the <a href="plugins">Plugins</a> page.</p>
+    }
 </div>
 
 @code {
@@ -90,6 +103,8 @@
     private string? _searchError, _locationMessage, _loadError, _unitError;
     private bool _searching, _saving, _locationOk;
     private string _unit = TemperatureUnits.Fahrenheit;
+    private IReadOnlyList<PluginInfo> _configurable = [];
+    private IReadOnlyList<PluginInfo> _disabledWithSettings = [];
 
     private static string N(double v, string format = "0.#####") => v.ToString(format, CultureInfo.InvariantCulture);
 
@@ -97,6 +112,10 @@
     {
         try
         {
+            var plugins = await Api.GetPluginsAsync();
+            _configurable = plugins.Where(p => p.HasSettings && p.Enabled).ToList();
+            _disabledWithSettings = plugins.Where(p => p.HasSettings && !p.Enabled).ToList();
+
             var settings = await Api.GetSettingsAsync();
             _unit = settings.TemperatureUnit;
             if (settings.Location is { } l) Fill(l.Name, l.Latitude, l.Longitude, l.ElevationMeters, l.TimeZoneId);

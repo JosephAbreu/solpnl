@@ -1,0 +1,13 @@
+-- 5: plugin-level settings, notification history (so each event is sent once)
+create table if not exists plugin_setting (
+    plugin_id text not null,
+    setting_key text not null,
+    value text null,
+    primary key (plugin_id, setting_key)
+);
+
+create table if not exists notification_log (
+    event_key text not null primary key,
+    raised_ms integer not null,
+    cleared_ms integer null
+);

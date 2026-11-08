@@ -24,6 +24,7 @@
     <ProjectReference Include="..\plugins\SolPnl.Plugin.Simulator\SolPnl.Plugin.Simulator.csproj" />
     <ProjectReference Include="..\plugins\SolPnl.Plugin.OpenMeteo\SolPnl.Plugin.OpenMeteo.csproj" />
     <ProjectReference Include="..\plugins\SolPnl.Plugin.NwsAlerts\SolPnl.Plugin.NwsAlerts.csproj" />
+    <ProjectReference Include="..\plugins\SolPnl.Plugin.Notify.Smtp\SolPnl.Plugin.Notify.Smtp.csproj" />
   </ItemGroup>
 
 </Project>

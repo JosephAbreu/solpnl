@@ -1,0 +1,128 @@
+@* Which events send notifications, and a test button that goes through every configured channel. *@
+@inject SolPnlApi Api
+
+<section class="panel card" aria-labelledby="notifications-heading">
+    <h2 id="notifications-heading">Notifications</h2>
+    <p class="hint">SolPnl sends these through every enabled notification plugin that's set up (below). Each event is sent
+        once; offline devices also get a message when they're back.</p>
+
+    @if (_prefs is { } p)
+    {
+        <form class="prefs" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+            <FluentCheckbox Value="p.WeatherAlerts" ValueChanged="@(v => Update(p with { WeatherAlerts = v }))"
+                            Label="Severe weather alerts for my location (US, from the National Weather Service)" />
+            <div class="inline">
+                <FluentCheckbox Value="p.DeviceOffline" ValueChanged="@(v => Update(p with { DeviceOffline = v }))"
+                                Label="A device stops reporting for" />
+                <FluentTextInput Value="@p.OfflineMinutes.ToString(CultureInfo.InvariantCulture)" ValueChanged="SetMinutes"
+                                 InputMode="TextInputMode.Numeric" Width="72px" aria-label="Minutes before a device counts as offline" />
+                <span>minutes</span>
+            </div>
+            <FluentCheckbox Value="p.SolarUnderperformance" ValueChanged="@(v => Update(p with { SolarUnderperformance = v }))"
+                            Label="Solar output falls below the forecast two sunny days in a row" />
+
+            @if (_message is { } message)
+            {
+                <FluentMessageBar Intent="@(_ok ? MessageBarIntent.Success : MessageBarIntent.Error)">@message</FluentMessageBar>
+            }
+            @if (_testResults is { } results)
+            {
+                <ul class="results">
+                    @foreach (var r in results)
+                    {
+                        <li class="@(r.Ok ? "ok" : "fail")">
+                            <FluentIcon Value="@(r.Ok ? (Icon)new Icons.Filled.Size16.CheckmarkCircle() : new Icons.Filled.Size16.ErrorCircle())"
+                                        Color="Color.Custom" CustomColor="@(r.Ok ? "var(--status-good)" : "var(--status-critical)")" />
+                            @r.Message
+                        </li>
+                    }
+                </ul>
+            }
+
+            <div class="actions">
+                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="TestAsync" Disabled="_busy">Send test notification</FluentButton>
+                <FluentButton Type="ButtonType.Submit" Appearance="ButtonAppearance.Primary" Disabled="_busy" Loading="_busy">Save</FluentButton>
+            </div>
+        </form>
+    }
+</section>
+
+@code {
+    private NotificationPreferences? _prefs;
+    private string? _minutesText;
+    private string? _message;
+    private bool _ok, _busy;
+    private IReadOnlyList<PluginActionResult>? _testResults;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _prefs = await Api.GetNotificationPreferencesAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _ok = false;
+            _message = $"Can't reach SolPnl: {ex.Message}";
+        }
+    }
+
+    private void Update(NotificationPreferences prefs)
+    {
+        _prefs = prefs;
+        _message = null;
+    }
+
+    private void SetMinutes(string? text)
+    {
+        _minutesText = text;
+        if (_prefs is not null && int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var minutes))
+            Update(_prefs with { OfflineMinutes = minutes });
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_prefs is null) return;
+        if (_minutesText is not null && !int.TryParse(_minutesText, NumberStyles.None, CultureInfo.InvariantCulture, out _))
+        {
+            _ok = false;
+            _message = "Minutes must be a whole number.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = await Api.SetNotificationPreferencesAsync(_prefs);
+            _ok = result.Ok;
+            _message = result.Ok ? "Saved." : result.Error;
+        }
+        catch (HttpRequestException ex)
+        {
+            _ok = false;
+            _message = $"Can't reach SolPnl: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task TestAsync()
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            _testResults = (await Api.SendTestNotificationAsync()).Results;
+        }
+        catch (HttpRequestException ex)
+        {
+            _testResults = [new PluginActionResult(false, $"Can't reach SolPnl: {ex.Message}")];
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
+using SolPnl.Core.Notifications;
 using SolPnl.Core.Polling;
 using SolPnl.Core.Site;
 using SolPnl.Core.Storage;
@@ -39,6 +40,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SiteService>();
         services.Configure<SiteOptions>(configuration.GetSection("Site"));
         services.AddHostedService<SiteBackgroundService>();
+
+        // Plugin-level settings and notifications. Notification plugins are registered by the host.
+        services.AddSingleton<PluginSettingsStore>();
+        services.AddSingleton<NotificationService>();
+        services.AddHostedService<NotificationBackgroundService>();
 
         services.Configure<PollingOptions>(configuration.GetSection("Polling"));
         services.AddHostedService<PollingService>();

@@ -6,6 +6,7 @@ using SolPnl.Contracts.Models;
 using SolPnl.Contracts.Plugins;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
+using SolPnl.Core.Notifications;
 using SolPnl.Core.Setup;
 using SolPnl.Core.Site;
 using SolPnl.Core.Storage;
@@ -195,7 +196,7 @@ public abstract class StorageTests : IAsyncLifetime
         var weather = new FakeWeather();
         var store = Store();
         await using var registry = Registry(new FakeDevicePluginType());
-        var catalog = new PluginCatalog(_factory, registry, [weather], []);
+        var catalog = new PluginCatalog(_factory, registry, [weather], [], []);
         var days = new DaySummaryStore(_factory, _time);
         var site = new SiteService(settings, catalog, days, store, _time, NullLogger<SiteService>.Instance);
 
@@ -251,6 +252,146 @@ public abstract class StorageTests : IAsyncLifetime
         await site.RefreshWeatherAsync();
         Assert.Null(site.LastWeather);
         Assert.Contains(await catalog.GetPluginsAsync(), p => p.Id == FakeWeather.PluginId && !p.Enabled && p.Kind == PluginKinds.Service);
+    }
+
+    [Fact]
+    public async Task PluginSettings_SecretsAreWriteOnly_AndValidated()
+    {
+        await Migrations().MigrateAsync();
+        var store = new PluginSettingsStore(_factory);
+        var plugin = new FakeNotifier();
+
+        var info = await store.GetInfoAsync(plugin);
+        Assert.False(info.IsConfigured);
+        Assert.Equal("Send test", info.TestLabel);
+
+        info = await store.SaveAsync(plugin, new SavePluginSettingsRequest(new() { ["target"] = " me ", ["token"] = "s3cret", ["mode"] = "fast" }));
+        Assert.True(info.IsConfigured);
+        Assert.Equal("me", info.Values["target"]);
+        Assert.Null(info.Values["token"]);                       // never returned
+        Assert.Equal(["token"], info.SecretsSet);
+
+        // null keeps the saved secret, "" clears it, a value replaces it.
+        await store.SaveAsync(plugin, new SavePluginSettingsRequest(new() { ["target"] = "me", ["token"] = null }));
+        Assert.Equal("s3cret", (await store.GetValuesAsync(plugin.Id))["token"]);
+        await store.SaveAsync(plugin, new SavePluginSettingsRequest(new() { ["target"] = "me", ["token"] = "new" }));
+        Assert.Equal("new", (await store.GetValuesAsync(plugin.Id))["token"]);
+        await store.SaveAsync(plugin, new SavePluginSettingsRequest(new() { ["target"] = "me", ["token"] = "" }));
+        Assert.False((await store.GetValuesAsync(plugin.Id)).ContainsKey("token"));
+
+        // Defaults fill in for what plugins receive; invalid numbers and choices are rejected.
+        Assert.Equal("slow", (await store.GetEffectiveAsync(plugin))["mode"]);
+        await Assert.ThrowsAsync<ArgumentException>(() => store.SaveAsync(plugin, new SavePluginSettingsRequest(new() { ["target"] = "me", ["mode"] = "warp" })));
+        await Assert.ThrowsAsync<ArgumentException>(() => store.SaveAsync(plugin, new SavePluginSettingsRequest(new() { ["target"] = "me", ["count"] = "many" })));
+
+        // Clearing a required field leaves the plugin "not set up".
+        Assert.False((await store.SaveAsync(plugin, new SavePluginSettingsRequest(new() { ["target"] = "" }))).IsConfigured);
+    }
+
+    [Fact]
+    public async Task Notifications_SendOnce_OfflineAndBack_WeatherAlerts()
+    {
+        await Migrations().MigrateAsync();
+        var settings = new SiteSettingsStore(_factory);
+        await settings.SetLocationAsync(new SiteLocation("Home", 30.27, -97.74, null, "America/Chicago"));
+
+        var notifier = new FakeNotifier();
+        var alerts = new FakeAlerts();
+        var store = Store();
+        await using var registry = Registry(new FakeDevicePluginType());
+        await registry.InitializeAsync(EmptyConfig());
+        var catalog = new PluginCatalog(_factory, registry, [], [alerts], [notifier]);
+        var pluginSettings = new PluginSettingsStore(_factory);
+        var site = new SiteService(settings, catalog, new DaySummaryStore(_factory, _time), store, _time, NullLogger<SiteService>.Instance);
+        var service = new NotificationService(_factory, catalog, pluginSettings, registry, store, site, _time, NullLogger<NotificationService>.Instance);
+
+        await registry.AddAsync(new AddDeviceRequest("Garage", "fake", new() { ["id"] = "a" }));
+        await store.SaveAsync(new DeviceInfo("fake-a", "Test", "Fake", null, null), [new Reading("fake-a", Metrics.PvPower, 1, "W", T0)]);
+        alerts.Alerts = [new WeatherAlert("nws-1", "Tornado Warning", "Tornado warning until 9 PM", "Extreme", "Immediate", T0, T0.AddHours(2), "Take shelter.", null, "NWS")];
+        await site.RefreshAlertsAsync();
+
+        // Not configured yet: nothing is sent (and nothing recorded, so it's sent once it's set up).
+        _time.Now = T0.AddMinutes(30);
+        await service.RunOnceAsync();
+        Assert.Empty(notifier.Sent);
+        Assert.False((await service.SendTestAsync()).Ok);
+
+        await pluginSettings.SaveAsync(notifier, new SavePluginSettingsRequest(new() { ["target"] = "me" }));
+        Assert.True((await service.SendTestAsync()).Ok);
+        notifier.Sent.Clear();
+
+        // Device silent for 30 minutes (> 10) and an active alert: one notification each.
+        await service.RunOnceAsync();
+        await service.RunOnceAsync();
+        Assert.Equal(2, notifier.Sent.Count);
+        Assert.Contains(notifier.Sent, a => a.Title == "Garage is offline" && a.Severity == AlertSeverity.Critical);
+        Assert.Contains(notifier.Sent, a => a.Title == "Tornado Warning" && a.Message.Contains("Take shelter."));
+        Assert.Equal("me", notifier.LastSettings!["target"]);
+
+        // The device reports again: one "back online", once.
+        await store.SaveAsync(new DeviceInfo("fake-a", "Test", "Fake", null, null), [new Reading("fake-a", Metrics.PvPower, 1, "W", _time.Now)]);
+        await service.RunOnceAsync();
+        await service.RunOnceAsync();
+        Assert.Equal(3, notifier.Sent.Count);
+        Assert.Equal("Garage is back online", notifier.Sent[^1].Title);
+
+        // Turning a category off stops it; a failing channel is retried later, not every minute.
+        await service.SetPreferencesAsync(new NotificationPreferences(WeatherAlerts: false));
+        alerts.Alerts = [new WeatherAlert("nws-2", "Flood Watch", null, "Moderate", null, null, null, null, null, null)];
+        await site.RefreshAlertsAsync();
+        await service.RunOnceAsync();
+        Assert.Equal(3, notifier.Sent.Count);
+        await Assert.ThrowsAsync<ArgumentException>(() => service.SetPreferencesAsync(new NotificationPreferences(OfflineMinutes: 1)));
+
+        await service.SetPreferencesAsync(new NotificationPreferences());
+        notifier.Fail = true;
+        await service.RunOnceAsync();
+        notifier.Fail = false;
+        await service.RunOnceAsync();                 // still within the retry pause
+        Assert.Equal(3, notifier.Sent.Count);
+        _time.Now = _time.Now.AddMinutes(16);
+        await store.SaveAsync(new DeviceInfo("fake-a", "Test", "Fake", null, null), [new Reading("fake-a", Metrics.PvPower, 1, "W", _time.Now)]);
+        await service.RunOnceAsync();
+        Assert.Equal("Flood Watch", notifier.Sent[^1].Title);
+    }
+
+    private sealed class FakeNotifier : INotificationPlugin, IConfigurablePlugin
+    {
+        public List<Alert> Sent { get; } = [];
+        public IReadOnlyDictionary<string, string?>? LastSettings { get; private set; }
+        public bool Fail { get; set; }
+        public string Id => "fake-notify";
+        public string DisplayName => "Fake notifier";
+        public string Description => "Test";
+        public string? TestLabel => "Send test";
+
+        public IReadOnlyList<SettingField> PluginSettings { get; } =
+        [
+            new("target", "Target"),
+            new("token", "Token", SettingKind.Secret, Required: false),
+            new("mode", "Mode", SettingKind.Choice, Required: false, Default: "slow", Options: ["slow", "fast"]),
+            new("count", "Count", SettingKind.Number, Required: false),
+        ];
+
+        public Task SendAsync(Alert alert, IReadOnlyDictionary<string, string?> settings, CancellationToken cancellationToken = default)
+        {
+            if (Fail) throw new IOException("Fake delivery failure.");
+            Sent.Add(alert);
+            LastSettings = settings;
+            return Task.CompletedTask;
+        }
+
+        public Task<PluginActionResult> TestAsync(IReadOnlyDictionary<string, string?> settings, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PluginActionResult(true, "ok"));
+    }
+
+    private sealed class FakeAlerts : IWeatherAlertProvider
+    {
+        public IReadOnlyList<WeatherAlert> Alerts { get; set; } = [];
+        public string Id => "fake-alerts";
+        public string DisplayName => "Fake alerts";
+        public string Description => "Test";
+        public Task<IReadOnlyList<WeatherAlert>> GetAlertsAsync(SiteLocation location, CancellationToken cancellationToken = default) => Task.FromResult(Alerts);
     }
 
     private sealed class FakeWeather : IWeatherProvider

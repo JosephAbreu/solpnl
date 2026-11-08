@@ -1,5 +1,6 @@
 using SolPnl.Contracts.Models;
 using SolPnl.Core.Devices;
+using SolPnl.Core.Notifications;
 using SolPnl.Core.Site;
 using SolPnl.Core.Storage;
 
@@ -26,6 +27,66 @@ public static class ManagementEndpoints
                 return Results.NotFound(new ApiError(ex.Message));
             }
         }).WithName("SetPluginEnabled");
+
+        // Plugin-level settings (cards on the Settings page). Secrets are never returned.
+        plugins.MapGet("/{id}/settings", async (string id, PluginCatalog catalog, PluginSettingsStore store, CancellationToken ct) =>
+            catalog.FindConfigurable(id) is { } plugin
+                ? Results.Ok(await store.GetInfoAsync(plugin, ct))
+                : Results.NotFound(new ApiError($"Plugin '{id}' has no settings.")))
+            .WithName("GetPluginSettings");
+
+        plugins.MapPut("/{id}/settings", async (string id, SavePluginSettingsRequest request, PluginCatalog catalog,
+            PluginSettingsStore store, CancellationToken ct) =>
+        {
+            if (catalog.FindConfigurable(id) is not { } plugin) return Results.NotFound(new ApiError($"Plugin '{id}' has no settings."));
+            try
+            {
+                return Results.Ok(await store.SaveAsync(plugin, request, ct));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new ApiError(ex.Message));
+            }
+        }).WithName("SavePluginSettings");
+
+        // Tries settings from the form (merged with saved secrets) without saving them.
+        plugins.MapPost("/{id}/settings/test", async (string id, SavePluginSettingsRequest request, PluginCatalog catalog,
+            PluginSettingsStore store, CancellationToken ct) =>
+        {
+            if (catalog.FindConfigurable(id) is not { } plugin) return Results.NotFound(new ApiError($"Plugin '{id}' has no settings."));
+            if (plugin.TestLabel is null) return Results.BadRequest(new ApiError("This plugin has no test."));
+            try
+            {
+                var merged = await store.MergeAsync(plugin, request, ct);
+                foreach (var field in plugin.PluginSettings)
+                    if (!merged.ContainsKey(field.Key) && field.Default is not null) merged[field.Key] = field.Default;
+                return Results.Ok(await plugin.TestAsync(merged, ct));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.Ok(new PluginActionResult(false, ex.Message));
+            }
+        }).WithName("TestPluginSettings");
+
+        var notifications = api.MapGroup("/notifications");
+
+        notifications.MapGet("/preferences", (NotificationService service, CancellationToken ct) => service.GetPreferencesAsync(ct))
+            .WithName("GetNotificationPreferences");
+
+        notifications.MapPut("/preferences", async (NotificationPreferences preferences, NotificationService service, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await service.SetPreferencesAsync(preferences, ct));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new ApiError(ex.Message));
+            }
+        }).WithName("SetNotificationPreferences");
+
+        notifications.MapPost("/test", (NotificationService service, CancellationToken ct) => service.SendTestAsync(ct))
+            .WithName("SendTestNotification");
 
         var config = api.MapGroup("/config/devices");
 

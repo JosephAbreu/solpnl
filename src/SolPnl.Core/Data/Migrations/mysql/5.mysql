@@ -1,0 +1,14 @@
+-- 5: plugin-level settings, notification history (so each event is sent once) (MySQL and MariaDB)
+create table if not exists plugin_setting (
+    plugin_id varchar(100) not null,
+    setting_key varchar(100) not null,
+    value text null,
+    primary key (plugin_id, setting_key)
+) engine = InnoDB;
+
+create table if not exists notification_log (
+    event_key varchar(255) not null,
+    raised_ms bigint not null,
+    cleared_ms bigint null,
+    primary key (event_key)
+) engine = InnoDB;
