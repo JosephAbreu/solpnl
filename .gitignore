@@ -490,3 +490,6 @@ appsettings.Local.json
 *.db-wal
 # Plugins added on this machine, when the data directory is the content root (dev)
 src/SolPnl.Api/plugins/
+# Backup state and backups, when the data directory is the content root (dev)
+src/SolPnl.Api/backup-state.json
+src/SolPnl.Api/backups/
