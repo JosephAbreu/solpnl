@@ -47,7 +47,7 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
 - **Weather** – sun times, current conditions, today's forecast vs actual temperatures, solar insights, weather charts
   (temperature, sunlight, cloud cover) and a daily history (forecast vs actual, sunlight, solar/load/grid energy).
   The dashboard shows the same "today" section and any active weather alerts.
-- **Settings** – the location (search for a place, or enter coordinates), temperature unit (°F/°C), which events send
+- **Settings** – the location (search for a place, or enter coordinates), units (US or metric), which events send
   notifications (with a test button), and a card for each enabled plugin that has its own settings (e.g. Email).
 - **Plugins** – installed plugins with their device counts. **Disable** pauses all of a plugin's devices (settings and
   history are kept); **Enable** resumes them.
@@ -104,7 +104,8 @@ Set the location in **Settings**. Then:
   window for heavy loads, and a check that solar output matches the forecast (flags two low sunny days in a row).
 - **Barometric pressure** shows with its 3-hour tendency: rising or falling when it changes by at least 1 hPa
   (0.03 inHg), "rapidly" from 3 hPa (0.09 inHg). A falling barometer often means a storm is coming.
-- **Units**: US (°F, inHg, mph) or metric (°C, hPa, km/h), chosen in Settings. Values are stored in metric.
+- **Units**: US (°F, inHg, mph, ft) or metric (°C, hPa, km/h, m), chosen in Settings. Values are stored in metric;
+  the location's elevation is entered in feet or meters to match.
 - **Weather alerts** come from the NWS plugin (US only). Disable it on the Plugins page outside the US.
 
 Weather and alert plugins are *service* plugins and can be disabled on the Plugins page; sensors on your network

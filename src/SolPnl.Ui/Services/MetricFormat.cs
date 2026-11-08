@@ -55,6 +55,18 @@ public static class MetricFormat
         };
 
     public const double HpaToInHg = 0.0295299830714;
+    public const double MetersPerFoot = 0.3048;
+
+    /// <summary>Unit for elevations: "ft" with US units, otherwise "m". Elevations are stored in meters.</summary>
+    public static string ElevationUnit => TemperatureUnit == TemperatureUnits.Fahrenheit ? "ft" : "m";
+
+    /// <summary>Meters as an editable number in <see cref="ElevationUnit"/>: whole feet, or meters to 0.1.</summary>
+    public static string ElevationInput(double meters) => ElevationUnit == "ft"
+        ? (meters / MetersPerFoot).ToString("0", CultureInfo.InvariantCulture)
+        : meters.ToString("0.#", CultureInfo.InvariantCulture);
+
+    /// <summary>A number entered in <see cref="ElevationUnit"/>, back to meters.</summary>
+    public static double ElevationToMeters(double value) => ElevationUnit == "ft" ? value * MetersPerFoot : value;
 
     /// <summary>Pressure in hPa formatted in the display unit, e.g. "30.09 inHg" or "1,019 hPa".</summary>
     public static string Pressure(double? hpa) => hpa is { } p ? Format(p, "hPa") : "–";
