@@ -1,0 +1,16 @@
+-- 6: alert history (every alert raised, and how it was delivered) (MySQL and MariaDB)
+create table if not exists alert_history (
+    id bigint not null auto_increment,
+    event_key varchar(255) not null,
+    category varchar(20) not null,
+    severity varchar(20) not null,
+    title varchar(300) not null,
+    message text not null,
+    device_id varchar(200) null,
+    raised_ms bigint not null,
+    delivered_ms bigint null,
+    delivery text null,
+    attempts int not null,
+    primary key (id),
+    key ix_alert_history_raised (raised_ms)
+) engine = InnoDB;

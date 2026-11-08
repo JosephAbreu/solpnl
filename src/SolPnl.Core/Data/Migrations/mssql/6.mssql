@@ -1,0 +1,15 @@
+-- 6: alert history (every alert raised, and how it was delivered)
+create table alert_history (
+    id bigint identity(1, 1) not null constraint pk_alert_history primary key,
+    event_key nvarchar(255) not null,
+    category nvarchar(20) not null,
+    severity nvarchar(20) not null,
+    title nvarchar(300) not null,
+    message nvarchar(max) not null,
+    device_id nvarchar(200) null,
+    raised_ms bigint not null,
+    delivered_ms bigint null,
+    delivery nvarchar(max) null,
+    attempts int not null
+);
+create index ix_alert_history_raised on alert_history (raised_ms);

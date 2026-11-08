@@ -1,0 +1,15 @@
+-- 6: alert history (every alert raised, and how it was delivered)
+create table if not exists alert_history (
+    id integer primary key autoincrement,
+    event_key text not null,
+    category text not null,
+    severity text not null,
+    title text not null,
+    message text not null,
+    device_id text null,
+    raised_ms integer not null,
+    delivered_ms integer null,
+    delivery text null,
+    attempts integer not null
+);
+create index if not exists ix_alert_history_raised on alert_history (raised_ms);
