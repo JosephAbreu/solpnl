@@ -722,6 +722,47 @@ public abstract class StorageTests : IAsyncLifetime
         Assert.Single((await grid.GetHistoryAsync(30)).Events);
     }
 
+    [Fact]
+    public async Task Savings_SummarizeDays_WithRateHistory_AndPayback()
+    {
+        await Migrations().MigrateAsync();
+        var settings = new SiteSettingsStore(_factory);
+        await settings.SetLocationAsync(new SiteLocation("Home", 33.75, -85.69, null, "America/Chicago"));
+        var days = new DaySummaryStore(_factory, _time);
+        var savings = new SavingsService(_factory, days, settings, _time);
+        _time.Now = new DateTimeOffset(2026, 11, 8, 18, 0, 0, TimeSpan.Zero); // Nov 8 local
+
+        await days.UpdateAsync(new DateOnly(2026, 10, 31), r => r.SolarWh = 20_000);
+        await days.UpdateAsync(new DateOnly(2026, 11, 7), r => r.SolarWh = 30_000);
+        await days.UpdateAsync(new DateOnly(2026, 11, 8), r => r.SolarWh = 10_000);
+
+        // No price yet: energy only.
+        var summary = await savings.GetSummaryAsync();
+        Assert.False(summary.Configured);
+        Assert.Null(summary.Lifetime);
+        Assert.Equal(60, summary.LifetimeSolarKwh);
+        Assert.Equal(new DateOnly(2026, 10, 31), summary.Since);
+
+        // $0.10 from the start, $0.20 from Nov 8; system cost $100.
+        await savings.SaveSettingsAsync(new SavingsSettings("$",
+            [new ElectricityRate(new DateOnly(2026, 11, 8), 0.20), new ElectricityRate(null, 0.10)], SystemCost: 100));
+        summary = await savings.GetSummaryAsync();
+        Assert.True(summary.Configured);
+        Assert.Equal(2.00, summary.Today);       // 10 kWh × 0.20
+        Assert.Equal(5.00, summary.ThisMonth);   // 30 × 0.10 + 10 × 0.20
+        Assert.Equal(7.00, summary.Lifetime);    // + 20 × 0.10
+        Assert.Equal(7.0, summary.PaybackPercent);
+        Assert.Equal(0.20, summary.CurrentPricePerKwh);
+        Assert.Equal(2, summary.Months.Count);
+        Assert.Equal(new MonthSavings(2026, 10, 20, 2), summary.Months[0]);
+
+        // Rates come back sorted, and bad input is refused.
+        var saved = await savings.GetSettingsAsync();
+        Assert.Null(saved.RateList[0].From);
+        await Assert.ThrowsAsync<ArgumentException>(() => savings.SaveSettingsAsync(new SavingsSettings("$", [new ElectricityRate(null, 0)])));
+        await Assert.ThrowsAsync<ArgumentException>(() => savings.SaveSettingsAsync(new SavingsSettings("dollars", [])));
+    }
+
     // ---- Backups -------------------------------------------------------------------------------------------
 
     private static readonly SecretKeys TestSecrets = new(new Dictionary<string, IReadOnlySet<string>>

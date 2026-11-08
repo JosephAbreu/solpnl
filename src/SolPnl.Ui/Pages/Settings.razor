@@ -4,7 +4,7 @@
 <PageTitle>Settings · SolPnl</PageTitle>
 
 <div class="page">
-    <PageHeader Title="Settings" Subtitle="Location, units, notifications and plugin settings" Icon="@(new Icons.Regular.Size24.Settings())"
+    <PageHeader Title="Settings" Subtitle="Location, units, electricity price, notifications and plugin settings" Icon="@(new Icons.Regular.Size24.Settings())"
                 Breadcrumbs="@([("Home", ""), ("Settings", null)])" />
 
     @if (_loadError is not null)
@@ -82,6 +82,8 @@
             <p class="hint error">@_unitError</p>
         }
     </section>
+
+    <SavingsSettingsCard />
 
     <NotificationsCard />
 

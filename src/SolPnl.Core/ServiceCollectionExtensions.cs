@@ -40,6 +40,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<PluginCatalog>();
         services.AddSingleton<DaySummaryStore>();
         services.AddSingleton<SiteService>();
+        services.AddSingleton<SavingsService>();
         services.Configure<SiteOptions>(configuration.GetSection("Site"));
         services.AddHostedService<SiteBackgroundService>();
 

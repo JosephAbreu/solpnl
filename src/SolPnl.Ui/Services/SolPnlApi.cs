@@ -124,6 +124,18 @@ public sealed class SolPnlApi(HttpClient http)
         return await http.GetFromJsonAsync<AlertsPage>("api/v1/alerts?" + string.Join("&", query), Json, ct) ?? new AlertsPage([], [], false);
     }
 
+    public async Task<SavingsSummary?> GetSavingsAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<SavingsSummary>("api/v1/site/savings", Json, ct);
+
+    public async Task<SavingsSettings> GetSavingsSettingsAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<SavingsSettings>("api/v1/settings/savings", Json, ct) ?? new SavingsSettings();
+
+    public async Task<ApiResult<SavingsSettings>> SaveSavingsSettingsAsync(SavingsSettings settings, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync("api/v1/settings/savings", settings, Json, ct);
+        return await ReadResultAsync<SavingsSettings>(response, ct);
+    }
+
     public async Task<GridHistory?> GetGridHistoryAsync(int days = 30, CancellationToken ct = default) =>
         await http.GetFromJsonAsync<GridHistory>($"api/v1/grid/events?days={days}", Json, ct);
 

@@ -1,0 +1,56 @@
+@* Money saved by solar: today, this month, this year, since the start, and payback progress if a system cost is set. *@
+
+@if (Summary is { } s)
+{
+    <section class="panel money" aria-labelledby="money-heading">
+        <div class="head">
+            <h2 id="money-heading">Money saved</h2>
+            @if (s.Configured && s.CurrentPricePerKwh is { } price)
+            {
+                <a href="settings#savings" class="muted">At @s.Currency@price.ToString("0.00###", CultureInfo.CurrentCulture)/kWh</a>
+            }
+        </div>
+
+        @if (!s.Configured)
+        {
+            <p class="setup">
+                <FluentIcon Value="@(new Icons.Regular.Size20.Money())" Color="Color.Custom" CustomColor="currentColor" />
+                <span><a href="settings#savings">Set your electricity price</a> to see what solar saves you.
+                    @if (s.LifetimeSolarKwh > 0)
+                    {
+                        <text>So far it has produced @s.LifetimeSolarKwh.ToString("N0", CultureInfo.CurrentCulture) kWh.</text>
+                    }
+                </span>
+            </p>
+        }
+        else
+        {
+            <div class="tile-grid">
+                <StatTile Label="Today" Value="@MetricFormat.Money(s.Today, s.Currency)" />
+                <StatTile Label="This month" Value="@MetricFormat.Money(s.ThisMonth, s.Currency)" />
+                <StatTile Label="This year" Value="@MetricFormat.Money(s.ThisYear, s.Currency)" />
+                <StatTile Label="@(s.Since is { } since ? $"Since {since.ToString("MMM d, yyyy", CultureInfo.CurrentCulture)}" : "In total")"
+                          Value="@MetricFormat.Money(s.Lifetime, s.Currency)"
+                          Detail="@($"{s.LifetimeSolarKwh.ToString("N0", CultureInfo.CurrentCulture)} kWh of solar")" />
+            </div>
+
+            @if (s.PaybackPercent is { } percent && s.SystemCost is { } cost)
+            {
+                <div class="payback">
+                    <div class="payback-label">
+                        <span>Payback</span>
+                        <span><strong>@percent.ToString("0.#", CultureInfo.CurrentCulture)%</strong> of @MetricFormat.Money(cost, s.Currency)</span>
+                    </div>
+                    <div class="bar" role="progressbar" aria-label="Payback" aria-valuemin="0" aria-valuemax="100"
+                         aria-valuenow="@Math.Min(100, percent).ToString("0.#", CultureInfo.InvariantCulture)">
+                        <div class="fill" style="width: @Math.Clamp(percent, 0, 100).ToString("0.##", CultureInfo.InvariantCulture)%"></div>
+                    </div>
+                </div>
+            }
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public SavingsSummary? Summary { get; set; }
+}
