@@ -52,7 +52,7 @@ public static class SrneRegisterMap
         new(0x0205, ForString(FaultCode, 2), 1, ""),
         new(0x0206, ForString(FaultCode, 3), 1, ""),
         new(0x0207, ForString(FaultCode, 4), 1, ""),
-        new(0x0210, StateMetric, 1, ""),            // operating state; meaning of values not yet mapped
+        new(0x0210, StateMetric, 1, ""),            // machine state; see SrneStates
 
         new(0x0212, DcBusVoltageMetric, 0.1, "V"),         // internal DC bus; 0x0228 + 0x0229 are its two halves
         new(0x0213, ForPhase(GridVoltage, 1), 0.1, "V"),

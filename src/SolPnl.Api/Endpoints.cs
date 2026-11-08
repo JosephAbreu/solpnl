@@ -91,6 +91,18 @@ public static class Endpoints
            })
            .WithName("GetDeviceFaults");
 
+        // The operating state the device reports right now, described by its plugin (204 if it doesn't report one).
+        api.MapGet("/devices/{deviceId}/state", async (string deviceId, IReadingStore store, DeviceRegistry registry,
+               TimeProvider time, CancellationToken ct) =>
+           {
+               var latest = await store.GetLatestAsync(deviceId, ct);
+               var plugin = registry.ActiveDevices.FirstOrDefault(d => d.DeviceKey == deviceId)?.Plugin;
+               return DeviceStates.Current(plugin, latest, time.GetUtcNow()) is { } state
+                   ? Results.Ok(state)
+                   : Results.NoContent();
+           })
+           .WithName("GetDeviceState");
+
         api.MapGet("/readings/latest", (string? device, IReadingStore store, CancellationToken ct) =>
                store.GetLatestAsync(device, ct))
            .WithName("GetLatestReadings");

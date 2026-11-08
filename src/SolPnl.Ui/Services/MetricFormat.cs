@@ -144,6 +144,10 @@ public static class MetricFormat
         return 6;
     }
 
+    /// <summary>"Mains powered (4)", or "State 12" when the plugin doesn't know the value.</summary>
+    public static string State(DeviceOperatingState state) =>
+        state.Description is null ? $"State {state.Value}" : $"{state.Description} ({state.Value})";
+
     public static string Ago(DateTimeOffset timestamp, DateTimeOffset now)
     {
         var age = now - timestamp;

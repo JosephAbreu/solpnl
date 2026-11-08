@@ -266,6 +266,16 @@ public sealed class SolPnlApi(HttpClient http)
     public async Task<IReadOnlyList<DeviceFault>> GetDeviceFaultsAsync(string deviceId, CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<DeviceFault>>($"api/v1/devices/{Uri.EscapeDataString(deviceId)}/faults", Json, ct) ?? [];
 
+    /// <summary>The device's operating state now, or null if it doesn't report one.</summary>
+    public async Task<DeviceOperatingState?> GetDeviceStateAsync(string deviceId, CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync($"api/v1/devices/{Uri.EscapeDataString(deviceId)}/state", ct);
+        response.EnsureSuccessStatusCode();
+        return response.StatusCode == System.Net.HttpStatusCode.NoContent
+            ? null
+            : await response.Content.ReadFromJsonAsync<DeviceOperatingState>(Json, ct);
+    }
+
     public async Task<IReadOnlyList<Reading>> GetLatestAsync(string? deviceId = null, CancellationToken ct = default)
     {
         var url = deviceId is null ? "api/v1/readings/latest" : $"api/v1/readings/latest?device={Uri.EscapeDataString(deviceId)}";

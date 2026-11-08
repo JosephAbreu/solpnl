@@ -29,7 +29,7 @@ internal sealed class FakeDevicePluginType(string pluginId = "fake") : IDevicePl
     }
 }
 
-internal sealed class FakeDevice(string pluginId, string deviceId, bool fail) : IDevicePlugin, IDeviceFaults, IAsyncDisposable
+internal sealed class FakeDevice(string pluginId, string deviceId, bool fail) : IDevicePlugin, IDeviceFaults, IDeviceState, IAsyncDisposable
 {
     public bool Disposed { get; private set; }
     public string Id => pluginId;
@@ -37,6 +37,10 @@ internal sealed class FakeDevice(string pluginId, string deviceId, bool fail) : 
     public string DeviceId => deviceId;
 
     public string? DescribeFault(int code) => code == 9 ? "PV voltage too high" : null;
+
+    public string StateMetric => "vendor.fake.state";
+
+    public string? DescribeState(int value) => value == 4 ? "Mains powered" : null;
 
     public Task<DeviceInfo> GetDeviceInfoAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new DeviceInfo(deviceId, "Test", "Fake", null, null));
