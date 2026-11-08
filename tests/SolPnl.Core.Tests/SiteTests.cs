@@ -180,3 +180,40 @@ public class InsightCalculatorTests
             i => i.Kind == InsightKinds.Underperformance);
     }
 }
+
+public class PressureTendencyTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 11, 7, 20, 0, 0, TimeSpan.Zero);
+
+    /// <summary>Readings every 15 minutes over the last 4 hours, changing linearly by <paramref name="change3h"/> per 3 hours.</summary>
+    private static List<HistoryPoint> Series(double latest, double change3h) =>
+        Enumerable.Range(0, 17).Select(i =>
+        {
+            var t = Now.AddMinutes(-15 * i);
+            return new HistoryPoint(t, latest - change3h * (15 * i) / 180.0);
+        }).ToList();
+
+    [Theory]
+    [InlineData(0.4, "steady", false)]
+    [InlineData(1.2, "rising", false)]
+    [InlineData(-1.5, "falling", false)]
+    [InlineData(-4.0, "falling", true)]
+    [InlineData(3.0, "rising", true)]
+    public void Tendency_FromThreeHourChange(double change, string tendency, bool rapid)
+    {
+        var trend = SiteService.PressureTendency(Series(1015, change))!;
+        Assert.Equal(1015, trend.Hpa);
+        Assert.Equal(Math.Round(change, 1), trend.ChangeHpa3h);
+        Assert.Equal(tendency, trend.Tendency);
+        Assert.Equal(rapid, trend.Rapid);
+    }
+
+    [Fact]
+    public void Tendency_NeedsThreeHoursOfHistory()
+    {
+        Assert.Null(SiteService.PressureTendency([]));
+        var young = SiteService.PressureTendency([new HistoryPoint(Now.AddHours(-1), 1010), new HistoryPoint(Now, 1015)])!;
+        Assert.Null(young.ChangeHpa3h);
+        Assert.Equal("steady", young.Tendency);
+    }
+}

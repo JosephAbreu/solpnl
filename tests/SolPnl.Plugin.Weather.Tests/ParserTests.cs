@@ -84,3 +84,24 @@ public class ParserTests
         Assert.Equal(["Tornado Warning", "Wind Advisory", "Frost Advisory"], NwsAlertProvider.Parse(json).Select(a => a.Event));
     }
 }
+
+public class PressureParsingTests
+{
+    [Fact]
+    public void OpenMeteo_ParsesSeaLevelPressure()
+    {
+        var json = JsonDocument.Parse("""
+            { "timezone": "America/Chicago", "utc_offset_seconds": -21600,
+              "current": { "time": 1794095100, "temperature_2m": 20.3, "pressure_msl": 1019.1, "surface_pressure": 999.8 } }
+            """).RootElement;
+        var report = OpenMeteoProvider.ParseForecast(json, DateTimeOffset.UnixEpoch);
+        Assert.Equal(1019.1, report.Current!.PressureHpa);
+    }
+
+    [Fact]
+    public void OpenMeteo_PressureMissing_IsNull()
+    {
+        var json = JsonDocument.Parse("""{ "current": { "time": 1794095100, "temperature_2m": 20.3 } }""").RootElement;
+        Assert.Null(OpenMeteoProvider.ParseForecast(json, DateTimeOffset.UnixEpoch).Current!.PressureHpa);
+    }
+}
