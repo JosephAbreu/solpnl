@@ -25,6 +25,8 @@
 
     <SiteToday Overview="_site" />
 
+    <MoneySaved Summary="_savings" />
+
     @if (_device is not null)
     {
         <section class="now" aria-label="Current values">
@@ -98,6 +100,7 @@
 
     private DeviceRow? _device;
     private SiteOverview? _site;
+    private SavingsSummary? _savings;
     private Dictionary<string, Reading> _latest = [];
     private DateTimeOffset? _lastReading;
     private TimeRange _range = TimeRange.Last24Hours;
@@ -121,6 +124,7 @@
         try
         {
             _site = await Api.GetSiteOverviewAsync(_cts.Token);
+            _savings = await Api.GetSavingsAsync(_cts.Token);
         }
         catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or OperationCanceledException)
         {

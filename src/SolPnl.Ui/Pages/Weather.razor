@@ -59,6 +59,10 @@
                                 <th scope="col" class="num">Solar</th>
                                 <th scope="col" class="num">Load</th>
                                 <th scope="col" class="num">Grid</th>
+                                @if (_currency is not null)
+                                {
+                                    <th scope="col" class="num">Saved</th>
+                                }
                             </tr>
                         </thead>
                         <tbody>
@@ -74,6 +78,10 @@
                                     <td class="num">@Kwh(d.SolarKwh)</td>
                                     <td class="num">@Kwh(d.LoadKwh)</td>
                                     <td class="num">@Kwh(d.GridKwh)</td>
+                                    @if (_currency is not null)
+                                    {
+                                        <td class="num">@MetricFormat.Money(d.Saved, _currency)</td>
+                                    }
                                 </tr>
                             }
                         </tbody>
@@ -89,6 +97,7 @@
 
     private SiteOverview? _overview;
     private IReadOnlyList<DaySummary> _days = [];
+    private string? _currency; // set when an electricity price is configured
     private TimeRange _range = TimeRange.Last24Hours;
     private int _refresh;
     private string? _error;
@@ -131,6 +140,7 @@
         {
             _overview = await Api.GetSiteOverviewAsync(_cts.Token);
             _days = await Api.GetDaySummariesAsync(ct: _cts.Token);
+            _currency = await Api.GetSavingsAsync(_cts.Token) is { Configured: true } savings ? savings.Currency : null;
             _refresh++;
             _error = null;
         }

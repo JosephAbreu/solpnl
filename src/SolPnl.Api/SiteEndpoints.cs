@@ -63,7 +63,7 @@ public static class SiteEndpoints
 
         // Daily summaries, oldest first. from/to are local dates (yyyy-MM-dd); default: the last 30 days.
         site.MapGet("/days", async (string? from, string? to, DaySummaryStore days, SiteSettingsStore settingsStore,
-            TimeProvider time, CancellationToken ct) =>
+            SavingsService savings, TimeProvider time, CancellationToken ct) =>
         {
             var location = await settingsStore.GetLocationAsync(ct);
             var zone = location is null ? TimeZoneInfo.Local : SiteSettingsStore.Zone(location);
@@ -74,8 +74,27 @@ public static class SiteEndpoints
             if (start > end) return Results.BadRequest(new ApiError("'from' must not be after 'to'."));
             if (end.DayNumber - start.DayNumber > 3660) return Results.BadRequest(new ApiError("Ask for at most 10 years at a time."));
 
-            return Results.Ok(await days.GetRangeAsync(start, end, ct));
+            return Results.Ok(await savings.WithSavingsAsync(await days.GetRangeAsync(start, end, ct), ct));
         }).WithName("GetDaySummaries");
+
+        // Money saved by solar, and the electricity price it's based on.
+        site.MapGet("/savings", (SavingsService savings, CancellationToken ct) => savings.GetSummaryAsync(ct))
+            .WithName("GetSavings");
+
+        api.MapGet("/settings/savings", (SavingsService savings, CancellationToken ct) => savings.GetSettingsAsync(ct))
+            .WithName("GetSavingsSettings");
+
+        api.MapPut("/settings/savings", async (SavingsSettings settings, SavingsService savings, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await savings.SaveSettingsAsync(settings, ct));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new ApiError(ex.Message));
+            }
+        }).WithName("SaveSavingsSettings");
     }
 
     private static bool TryDate(string? value, DateOnly fallback, out DateOnly date)

@@ -36,18 +36,21 @@ Then open http://localhost:5255 (the URL printed at startup) for the dashboard.
 
 ## Web UI
 A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net) and served by `SolPnl.Api`:
-- **Dashboard** – current solar output, load, grid voltage and temperature, plus solar/load and per-string charts.
+- **Dashboard** – current solar output, load, grid voltage and temperature, money saved (today, month, year, in total,
+  and payback progress), plus solar/load and per-string charts.
 - **Devices** – every device with status and last reading; filterable (also from the header search).
   **Add device** picks a device type and builds its settings form from the plugin, with **Test connection**.
 - **Device page** – Essentials, current values and charts (Overview tab), and every reported metric with a chart
   for any of them (Metrics tab). **Remove** stops polling and forgets the settings; history is kept unless you choose
   to delete it too. Devices with history only can have it deleted.
-- **Alerts** – what's going on now (offline devices, active weather alerts, solar warnings) and the history of every
+- **Alerts** – what's going on now (offline devices, grid outages, active weather alerts, solar warnings), grid power
+  over the last 30 days (outages and voltage problems), and the history of every
   alert with its delivery result (sent, failed and retrying, waiting for a channel, or not sent); filter by category.
 - **Weather** – sun times, current conditions, today's forecast vs actual temperatures, solar insights, weather charts
   (temperature, sunlight, cloud cover) and a daily history (forecast vs actual, sunlight, solar/load/grid energy).
   The dashboard shows the same "today" section and any active weather alerts.
-- **Settings** – the location (search for a place, or enter coordinates), units (US or metric), which events send
+- **Settings** – the location (search for a place, or enter coordinates), units (US or metric), the electricity price
+  (see [Money saved](#money-saved)), which events send
   notifications (with a test button), and a card for each enabled plugin that has its own settings (e.g. Email).
 - **Backups** – status, the backups on the server (download, restore, delete), the daily schedule, and restoring
   from an uploaded file. See [Backups](#backups).
@@ -120,12 +123,35 @@ Enable and set up a notification plugin on **Settings** (the **Email (SMTP)** ca
 from and to; **Send test email** checks it). SolPnl then sends, once per event:
 - severe weather alerts for your location (NWS),
 - a device that stops reporting for N minutes (default 10), and again when it's back,
-- solar output below the forecast on two sunny days in a row.
+- solar output below the forecast on two sunny days in a row,
+- the grid going out (and coming back, with how long it was out),
+- grid voltage outside the normal range for a minute (automatic: 106–127 V per leg for 120 V service, 207–253 V for
+  230 V; or set your own),
+- a scheduled backup that fails.
 
 Choose which on the **Notifications** card. For Gmail, Outlook.com and iCloud use an app password.
 
 Every alert is recorded on the **Alerts** page, even when no channel is set up yet; alerts from the last 24 hours are
 sent as soon as one is. Failed sends are retried every 15 minutes for up to 24 hours. History is kept for a year.
+
+## Grid outages
+SolPnl watches the grid voltage the inverter reports on every poll (no outside service needed, and quicker than a
+utility's outage map):
+- **Outage:** every leg under 30 V for 20 seconds, or under it and then the inverter goes quiet. An inverter with no
+  battery shuts down with the grid when there isn't enough sun, so its "offline" alert is held back during an outage.
+- **Low / high voltage:** any leg outside the limits for a minute.
+
+Each event is recorded with its start and end, and the lowest (or highest) voltage, and shown on the **Alerts** page.
+SolPnl can't see time when it is itself without power, and it can't know about planned outages in advance.
+
+## Money saved
+Enter the price you pay per kWh on **Settings → Electricity price** (the energy charge plus per-kWh fuel or rider
+charges; fixed monthly charges don't change with solar). An optional summer price applies June–September. When the
+rate changes, add the new price with the date it applies from; earlier days keep the old price.
+
+Savings for each day = that day's solar energy × the price that day. This assumes all solar is used at home (no
+export). The Dashboard shows today, this month, this year and the total; with the system cost entered, also payback
+progress. The Weather page's daily history gets a **Saved** column.
 
 ## Backups
 SolPnl backs up its database every day (02:30 in your location's time zone by default) and keeps the newest 14,
@@ -154,6 +180,9 @@ the database and never returned by the API: the card shows them as "Saved", with
 ## API
 | Endpoint | Description |
 |---|---|
+| `GET /api/v1/grid/events[?days=30]` | Grid outages and low/high voltage, newest first, with outage totals |
+| `GET /api/v1/site/savings` | Money saved: today, month, year, total, payback, per month |
+| `GET/PUT /api/v1/settings/savings` | `{ currency, rates: [{ from, pricePerKwh, summerPricePerKwh }], systemCost }` |
 | `GET /api/v1/backups` | Backup status, schedule and the backups on the server |
 | `PUT /api/v1/backups/settings` | `{ enabled, time: "HH:mm", keep, folder }` (folder null = default) |
 | `POST /api/v1/backups` | Start a backup (202; poll `GET /api/v1/backups`) |

@@ -7,6 +7,7 @@ using SolPnl.Contracts.Plugins;
 using SolPnl.Core.Backup;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
+using SolPnl.Core.Grid;
 using SolPnl.Core.Notifications;
 using SolPnl.Core.Setup;
 using SolPnl.Core.Site;
@@ -306,7 +307,7 @@ public abstract class StorageTests : IAsyncLifetime
         var catalog = new PluginCatalog(_factory, registry, [], [alerts], [notifier]);
         var pluginSettings = new PluginSettingsStore(_factory);
         var site = new SiteService(settings, catalog, new DaySummaryStore(_factory, _time), store, _time, NullLogger<SiteService>.Instance);
-        var service = new NotificationService(_factory, catalog, pluginSettings, registry, store, site, _time, NullLogger<NotificationService>.Instance);
+        var service = new NotificationService(_factory, catalog, pluginSettings, registry, store, site, new GridMonitor(_factory, store, _time), _time, NullLogger<NotificationService>.Instance);
 
         await registry.AddAsync(new AddDeviceRequest("Garage", "fake", new() { ["id"] = "a" }));
         await store.SaveAsync(new DeviceInfo("fake-a", "Test", "Fake", null, null), [new Reading("fake-a", Metrics.PvPower, 1, "W", T0)]);
@@ -648,6 +649,118 @@ public abstract class StorageTests : IAsyncLifetime
 
         await using var db = await _factory.CreateDbContextAsync();
         Assert.Equal(1, await db.Readings.CountAsync());
+    }
+
+    [Fact]
+    public async Task GridOutage_RaisesAlerts_RecordsEvents_AndSuppressesOffline()
+    {
+        await Migrations().MigrateAsync();
+        var settings = new SiteSettingsStore(_factory);
+        var notifier = new FakeNotifier();
+        var store = Store();
+        await using var registry = Registry(new FakeDevicePluginType());
+        await registry.InitializeAsync(EmptyConfig());
+        var catalog = new PluginCatalog(_factory, registry, [], [], [notifier]);
+        var pluginSettings = new PluginSettingsStore(_factory);
+        var site = new SiteService(settings, catalog, new DaySummaryStore(_factory, _time), store, _time, NullLogger<SiteService>.Instance);
+        var grid = new GridMonitor(_factory, store, _time);
+        var service = new NotificationService(_factory, catalog, pluginSettings, registry, store, site, grid, _time, NullLogger<NotificationService>.Instance);
+        await pluginSettings.SaveAsync(notifier, new SavePluginSettingsRequest(new() { ["target"] = "me" }));
+        await service.SetPreferencesAsync(new NotificationPreferences(WeatherAlerts: false, SolarUnderperformance: false));
+
+        await registry.AddAsync(new AddDeviceRequest("Inverter", "fake", new() { ["id"] = "a" }));
+        var device = new DeviceInfo("fake-a", "Test", "Fake", null, null);
+        async Task Poll(DateTimeOffset at, double volts) => await store.SaveAsync(device,
+        [
+            new Reading("fake-a", Metrics.ForPhase(Metrics.GridVoltage, 1), volts, "V", at),
+            new Reading("fake-a", Metrics.ForPhase(Metrics.GridVoltage, 2), volts, "V", at),
+        ]);
+
+        var start = T0.AddMinutes(5);
+        for (var i = 0; i < 6; i++) await Poll(start.AddSeconds(i * 10), 123.4);
+        // The grid drops: three zero readings, then the inverter goes quiet (night, no battery).
+        for (var i = 6; i < 9; i++) await Poll(start.AddSeconds(i * 10), 0.3);
+        _time.Now = start.AddMinutes(2);
+        await service.RunOnceAsync();
+
+        var outage = Assert.Single(notifier.Sent);
+        Assert.Equal("Grid power is out", outage.Title);
+        Assert.Equal(AlertSeverity.Critical, outage.Severity);
+        var history = await grid.GetHistoryAsync(30);
+        var e = Assert.Single(history.Events);
+        Assert.Equal(GridEventKinds.Outage, e.Kind);
+        Assert.Equal(start.AddSeconds(60), e.StartedAt);
+        Assert.Null(e.EndedAt);
+
+        // Half an hour later the device is still silent: no "offline" alert on top of the outage.
+        _time.Now = start.AddMinutes(32);
+        await service.RunOnceAsync();
+        Assert.Single(notifier.Sent);
+
+        // A fresh monitor (as after a restart) picks the open outage up again; power returns.
+        grid = new GridMonitor(_factory, store, _time);
+        service = new NotificationService(_factory, catalog, pluginSettings, registry, store, site, grid, _time, NullLogger<NotificationService>.Instance);
+        var back = start.AddMinutes(45);
+        await Poll(back, 122.9);
+        await Poll(back.AddSeconds(10), 123.1);
+        _time.Now = back.AddSeconds(30);
+        await service.RunOnceAsync();
+
+        Assert.Equal(2, notifier.Sent.Count);
+        Assert.Equal("Grid power is back", notifier.Sent[^1].Title);
+        Assert.Contains("44 min", notifier.Sent[^1].Message);
+        history = await grid.GetHistoryAsync(30);
+        e = Assert.Single(history.Events);
+        Assert.Equal(back, e.EndedAt);
+        Assert.Equal(1, history.Outages);
+        Assert.Equal(44, history.OutageMinutes);
+        Assert.Contains((await service.GetAlertsAsync(category: AlertCategories.Grid)).History, a => a.Title == "Grid power is back");
+
+        // Running again doesn't duplicate anything.
+        await service.RunOnceAsync();
+        Assert.Equal(2, notifier.Sent.Count);
+        Assert.Single((await grid.GetHistoryAsync(30)).Events);
+    }
+
+    [Fact]
+    public async Task Savings_SummarizeDays_WithRateHistory_AndPayback()
+    {
+        await Migrations().MigrateAsync();
+        var settings = new SiteSettingsStore(_factory);
+        await settings.SetLocationAsync(new SiteLocation("Home", 33.75, -85.69, null, "America/Chicago"));
+        var days = new DaySummaryStore(_factory, _time);
+        var savings = new SavingsService(_factory, days, settings, _time);
+        _time.Now = new DateTimeOffset(2026, 11, 8, 18, 0, 0, TimeSpan.Zero); // Nov 8 local
+
+        await days.UpdateAsync(new DateOnly(2026, 10, 31), r => r.SolarWh = 20_000);
+        await days.UpdateAsync(new DateOnly(2026, 11, 7), r => r.SolarWh = 30_000);
+        await days.UpdateAsync(new DateOnly(2026, 11, 8), r => r.SolarWh = 10_000);
+
+        // No price yet: energy only.
+        var summary = await savings.GetSummaryAsync();
+        Assert.False(summary.Configured);
+        Assert.Null(summary.Lifetime);
+        Assert.Equal(60, summary.LifetimeSolarKwh);
+        Assert.Equal(new DateOnly(2026, 10, 31), summary.Since);
+
+        // $0.10 from the start, $0.20 from Nov 8; system cost $100.
+        await savings.SaveSettingsAsync(new SavingsSettings("$",
+            [new ElectricityRate(new DateOnly(2026, 11, 8), 0.20), new ElectricityRate(null, 0.10)], SystemCost: 100));
+        summary = await savings.GetSummaryAsync();
+        Assert.True(summary.Configured);
+        Assert.Equal(2.00, summary.Today);       // 10 kWh × 0.20
+        Assert.Equal(5.00, summary.ThisMonth);   // 30 × 0.10 + 10 × 0.20
+        Assert.Equal(7.00, summary.Lifetime);    // + 20 × 0.10
+        Assert.Equal(7.0, summary.PaybackPercent);
+        Assert.Equal(0.20, summary.CurrentPricePerKwh);
+        Assert.Equal(2, summary.Months.Count);
+        Assert.Equal(new MonthSavings(2026, 10, 20, 2), summary.Months[0]);
+
+        // Rates come back sorted, and bad input is refused.
+        var saved = await savings.GetSettingsAsync();
+        Assert.Null(saved.RateList[0].From);
+        await Assert.ThrowsAsync<ArgumentException>(() => savings.SaveSettingsAsync(new SavingsSettings("$", [new ElectricityRate(null, 0)])));
+        await Assert.ThrowsAsync<ArgumentException>(() => savings.SaveSettingsAsync(new SavingsSettings("dollars", [])));
     }
 
     // ---- Backups -------------------------------------------------------------------------------------------

@@ -58,11 +58,44 @@
         }
     </section>
 
+    @if (_grid is { } grid && (_category is null || _category == AlertCategories.Grid))
+    {
+        <section class="panel" aria-labelledby="grid-heading">
+            <h2 id="grid-heading">Grid power</h2>
+            <p class="grid-summary">
+                Last @grid.Days days:
+                <strong>@(grid.Outages == 0 ? "no outages" : grid.Outages == 1 ? "1 outage" : $"{grid.Outages} outages")</strong>@(grid.Outages > 0 ? $", {OutageTotal(grid.OutageMinutes)} in total" : "").
+            </p>
+            @if (grid.Events.Count > 0)
+            {
+                <table class="grid-events">
+                    <thead><tr><th scope="col">What</th><th scope="col">Started</th><th scope="col">Lasted</th><th scope="col" class="num">Voltage</th></tr></thead>
+                    <tbody>
+                        @foreach (var e in grid.Events.Take(_showAllGrid ? grid.Events.Count : 10))
+                        {
+                            <tr>
+                                <td>@GridKind(e.Kind)</td>
+                                <td>@When(e.StartedAt)</td>
+                                <td>@(e.EndedAt is { } end ? Lasted(end - e.StartedAt) : "Still going on")</td>
+                                <td class="num">@(e.Extreme is { } v ? $"{(e.Kind == GridEventKinds.High ? "max" : "min")} {v:0.0} V" : "–")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                @if (!_showAllGrid && grid.Events.Count > 10)
+                {
+                    <button type="button" class="link" @onclick="() => _showAllGrid = true">Show all @grid.Events.Count</button>
+                }
+            }
+            <p class="hint">From the grid voltage your inverter reports. If SolPnl itself loses power in an outage, that time isn't seen.</p>
+        </section>
+    }
+
     <section class="panel" aria-labelledby="history-heading">
         <h2 id="history-heading">History</h2>
         @if (_loaded && _history.Count == 0)
         {
-            <p class="quiet">No alerts yet. Alerts appear here when devices go offline, weather alerts are issued for your location,
+            <p class="quiet">No alerts yet. Alerts appear here when devices go offline, grid power goes out, weather alerts are issued for your location,
                 solar output falls below the forecast, or a scheduled backup fails.</p>
         }
         else
@@ -120,6 +153,7 @@
     [
         (null, "All"),
         (AlertCategories.Device, "Devices"),
+        (AlertCategories.Grid, "Grid"),
         (AlertCategories.Weather, "Weather"),
         (AlertCategories.Solar, "Solar"),
         (AlertCategories.System, "System"),
@@ -133,6 +167,8 @@
     private List<AlertEntry> _history = [];
     private bool _hasMore, _loaded, _loadingMore;
     private string? _error;
+    private GridHistory? _grid;
+    private bool _showAllGrid;
     private readonly CancellationTokenSource _cts = new();
 
     protected override async Task OnParametersSetAsync()
@@ -173,6 +209,7 @@
             _active = page.Active.ToList();
             _history = page.History.ToList();
             _hasMore = page.HasMore;
+            _grid = await Api.GetGridHistoryAsync(ct: _cts.Token);
             _error = null;
         }
         catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
@@ -213,9 +250,28 @@
             : t.ToLocalTime().ToString("MMM d, h:mm tt", CultureInfo.CurrentCulture);
     }
 
+    private static string GridKind(string kind) => kind switch
+    {
+        GridEventKinds.Outage => "Outage",
+        GridEventKinds.Low => "Low voltage",
+        GridEventKinds.High => "High voltage",
+        _ => kind,
+    };
+
+    private static string Lasted(TimeSpan span) => span switch
+    {
+        { TotalMinutes: < 1 } => $"{Math.Max(0, (int)span.TotalSeconds)} s",
+        { TotalHours: < 1 } => $"{(int)span.TotalMinutes} min",
+        { TotalDays: < 1 } => $"{(int)span.TotalHours} h {span.Minutes} min",
+        _ => $"{(int)span.TotalDays} d {span.Hours} h",
+    };
+
+    private static string OutageTotal(double minutes) => Lasted(TimeSpan.FromMinutes(minutes));
+
     private static string CategoryLabel(string category) => category switch
     {
         AlertCategories.Device => "Device",
+        AlertCategories.Grid => "Grid",
         AlertCategories.Weather => "Weather",
         AlertCategories.Solar => "Solar",
         AlertCategories.System => "System",

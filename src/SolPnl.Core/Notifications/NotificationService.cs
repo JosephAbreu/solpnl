@@ -6,6 +6,7 @@ using SolPnl.Contracts.Models;
 using SolPnl.Contracts.Plugins;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
+using SolPnl.Core.Grid;
 using SolPnl.Core.Site;
 using SolPnl.Core.Storage;
 
@@ -28,6 +29,7 @@ public sealed class NotificationService(
     DeviceRegistry devices,
     IReadingStore store,
     SiteService site,
+    GridMonitor grid,
     TimeProvider time,
     ILogger<NotificationService> logger)
 {
@@ -54,6 +56,10 @@ public sealed class NotificationService(
     {
         if (preferences.OfflineMinutes is < 2 or > 1440)
             throw new ArgumentException("Offline alert delay must be between 2 and 1,440 minutes.");
+        if (preferences.GridVoltageLow is < 50 or > 300 || preferences.GridVoltageHigh is < 50 or > 300)
+            throw new ArgumentException("Grid voltage limits must be between 50 and 300 V.");
+        if (preferences is { GridVoltageLow: { } lo, GridVoltageHigh: { } hi } && lo >= hi)
+            throw new ArgumentException("The low grid voltage limit must be below the high one.");
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var row = await db.AppSettings.SingleOrDefaultAsync(s => s.Key == PreferencesKey, ct);
@@ -122,6 +128,11 @@ public sealed class NotificationService(
             }
         }
 
+        // Grid events are recorded whatever the preferences; only the alerts depend on them.
+        var names = devices.ActiveDevices.ToDictionary(d => d.DeviceKey, d => d.Name, StringComparer.Ordinal);
+        foreach (var change in await grid.CheckAsync(names.Keys, prefs.GridVoltageLow, prefs.GridVoltageHigh, ct))
+            await GridAlertAsync(change, names.GetValueOrDefault(change.DeviceKey) ?? change.DeviceKey, prefs, ct);
+
         if (prefs.DeviceOffline)
         {
             foreach (var device in devices.ActiveDevices)
@@ -130,6 +141,8 @@ public sealed class NotificationService(
                 if (latest.Count == 0) continue; // never reported yet: "waiting", not offline
                 var last = latest.Max(r => r.Timestamp);
                 var key = $"offline:{device.DeviceKey}";
+                // During a grid outage an inverter without a battery shuts down; the outage alert already says why.
+                if (grid.HasOutage(device.DeviceKey)) continue;
                 if (now - last > TimeSpan.FromMinutes(prefs.OfflineMinutes))
                 {
                     await RaiseAsync(key, AlertCategories.Device, new Alert(key, AlertSeverity.Critical, $"{device.Name} is offline",
@@ -166,6 +179,60 @@ public sealed class NotificationService(
             await db.Database.ExecuteSqlAsync($"delete from alert_history where raised_ms < {cutoff}", ct);
         }
     }
+
+    /// <summary>Raises or clears the alert for a grid event that opened or closed.</summary>
+    private async Task GridAlertAsync(GridChange change, string deviceName, NotificationPreferences prefs, CancellationToken ct)
+    {
+        var e = change.Event;
+        if (e.Kind == GridEventKinds.Outage)
+        {
+            var key = $"grid:outage:{change.DeviceKey}";
+            if (change.Opened)
+            {
+                if (!prefs.GridOutage) return;
+                await RaiseAsync(key, AlertCategories.Grid, new Alert(key, AlertSeverity.Critical, "Grid power is out",
+                    $"{deviceName} has seen no grid voltage since {Local(e.StartedAt)}. Until it's back, loads can only run on solar " +
+                    "(or a battery, if there is one). SolPnl will let you know when power returns.", e.StartedAt, change.DeviceKey), ct);
+            }
+            else
+            {
+                await ClearAsync(key, AlertCategories.Grid, new Alert(key, AlertSeverity.Info, "Grid power is back",
+                    $"Grid power returned at {Local(e.EndedAt!.Value)} after {Duration(e.EndedAt.Value - e.StartedAt)} " +
+                    $"(out since {Local(e.StartedAt)}).", e.EndedAt.Value, change.DeviceKey), ct);
+            }
+            return;
+        }
+
+        var voltageKey = $"grid:voltage:{change.DeviceKey}";
+        var low = e.Kind == GridEventKinds.Low;
+        if (change.Opened)
+        {
+            if (!prefs.GridVoltage) return;
+            var limits = GridLimits.For(e.Extreme, prefs.GridVoltageLow, prefs.GridVoltageHigh);
+            await RaiseAsync(voltageKey, AlertCategories.Grid, new Alert(voltageKey, AlertSeverity.Warning,
+                low ? "Grid voltage is low" : "Grid voltage is high",
+                $"Grid voltage at {deviceName} has been {(low ? $"below {limits.Low:0} V" : $"above {limits.High:0} V")} since " +
+                $"{Local(e.StartedAt)} ({(low ? "lowest" : "highest")} so far {e.Extreme:0.0} V). Sustained " +
+                $"{(low ? "low" : "high")} voltage can be hard on motors and electronics; if it keeps happening, tell your utility.",
+                e.StartedAt, change.DeviceKey), ct);
+        }
+        else
+        {
+            await ClearAsync(voltageKey, AlertCategories.Grid, new Alert(voltageKey, AlertSeverity.Info, "Grid voltage is back to normal",
+                $"Grid voltage was {(low ? "low" : "high")} from {Local(e.StartedAt)} to {Local(e.EndedAt!.Value)} " +
+                $"({Duration(e.EndedAt.Value - e.StartedAt)}; {(low ? "lowest" : "highest")} {e.Extreme:0.0} V).",
+                e.EndedAt.Value, change.DeviceKey), ct);
+        }
+    }
+
+    /// <summary>"45 s", "12 min", "2 h 5 min", "1 d 3 h".</summary>
+    public static string Duration(TimeSpan span) => span switch
+    {
+        { TotalMinutes: < 1 } => $"{Math.Max(0, (int)span.TotalSeconds)} s",
+        { TotalHours: < 1 } => $"{(int)span.TotalMinutes} min",
+        { TotalDays: < 1 } => span.Minutes == 0 ? $"{(int)span.TotalHours} h" : $"{(int)span.TotalHours} h {span.Minutes} min",
+        _ => span.Hours == 0 ? $"{(int)span.TotalDays} d" : $"{(int)span.TotalDays} d {span.Hours} h",
+    };
 
     /// <summary>
     /// Raises an alert about SolPnl itself (e.g. a failed backup) once, until <see cref="ClearSystemAsync"/> is called,
