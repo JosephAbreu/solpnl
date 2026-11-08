@@ -23,6 +23,7 @@ public sealed class SolPnlDb(DbContextOptions<SolPnlDb> options) : DbContext(opt
     public DbSet<DaySummaryEntity> DaySummaries => Set<DaySummaryEntity>();
     public DbSet<PluginSettingEntity> PluginSettings => Set<PluginSettingEntity>();
     public DbSet<NotificationLogEntity> NotificationLog => Set<NotificationLogEntity>();
+    public DbSet<AlertHistoryEntity> AlertHistory => Set<AlertHistoryEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -157,6 +158,23 @@ public sealed class SolPnlDb(DbContextOptions<SolPnlDb> options) : DbContext(opt
             e.Property(x => x.RaisedMs).HasColumnName("raised_ms");
             e.Property(x => x.ClearedMs).HasColumnName("cleared_ms");
         });
+
+        modelBuilder.Entity<AlertHistoryEntity>(e =>
+        {
+            e.ToTable("alert_history");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.EventKey).HasColumnName("event_key").HasMaxLength(255);
+            e.Property(x => x.Category).HasColumnName("category").HasMaxLength(20);
+            e.Property(x => x.Severity).HasColumnName("severity").HasMaxLength(20);
+            e.Property(x => x.Title).HasColumnName("title").HasMaxLength(300);
+            e.Property(x => x.Message).HasColumnName("message");
+            e.Property(x => x.DeviceId).HasColumnName("device_id").HasMaxLength(200);
+            e.Property(x => x.RaisedMs).HasColumnName("raised_ms");
+            e.Property(x => x.DeliveredMs).HasColumnName("delivered_ms");
+            e.Property(x => x.Delivery).HasColumnName("delivery");
+            e.Property(x => x.Attempts).HasColumnName("attempts");
+        });
     }
 }
 
@@ -285,4 +303,20 @@ public sealed class NotificationLogEntity
     public required string EventKey { get; set; }
     public long RaisedMs { get; set; }
     public long? ClearedMs { get; set; }
+}
+
+/// <summary>An alert SolPnl raised (and its delivery result), for the Alerts page.</summary>
+public sealed class AlertHistoryEntity
+{
+    public long Id { get; set; }
+    public required string EventKey { get; set; }
+    public required string Category { get; set; }
+    public required string Severity { get; set; }
+    public required string Title { get; set; }
+    public required string Message { get; set; }
+    public string? DeviceId { get; set; }
+    public long RaisedMs { get; set; }
+    public long? DeliveredMs { get; set; }
+    public string? Delivery { get; set; }
+    public int Attempts { get; set; }
 }

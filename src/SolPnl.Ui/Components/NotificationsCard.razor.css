@@ -6,6 +6,23 @@
     padding: 20px 24px;
 }
 
+.head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+    .head a {
+        color: var(--colorBrandForegroundLink);
+        font-size: var(--fontSizeBase300);
+    }
+
+.card {
+    scroll-margin-top: 16px;
+}
+
 h2 {
     margin: 0;
     font-size: var(--fontSizeBase400);

@@ -88,6 +88,11 @@ public static class ManagementEndpoints
         notifications.MapPost("/test", (NotificationService service, CancellationToken ct) => service.SendTestAsync(ct))
             .WithName("SendTestNotification");
 
+        // Open conditions plus alert history, newest first. Page with ?before=<id of the last entry shown>.
+        api.MapGet("/alerts", (string? category, int? limit, long? before, NotificationService service, CancellationToken ct) =>
+                service.GetAlertsAsync(category, limit ?? 50, before, ct))
+            .WithName("GetAlerts");
+
         var config = api.MapGroup("/config/devices");
 
         config.MapGet("", (DeviceRegistry registry, CancellationToken ct) => registry.GetDevicesAsync(ct))

@@ -42,6 +42,8 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
 - **Device page** – Essentials, current values and charts (Overview tab), and every reported metric with a chart
   for any of them (Metrics tab). **Remove** stops polling and forgets the settings; history is kept unless you choose
   to delete it too. Devices with history only can have it deleted.
+- **Alerts** – what's going on now (offline devices, active weather alerts, solar warnings) and the history of every
+  alert with its delivery result (sent, failed and retrying, waiting for a channel, or not sent); filter by category.
 - **Weather** – sun times, current conditions, today's forecast vs actual temperatures, solar insights, weather charts
   (temperature, sunlight, cloud cover) and a daily history (forecast vs actual, sunlight, solar/load/grid energy).
   The dashboard shows the same "today" section and any active weather alerts.
@@ -114,6 +116,9 @@ from and to; **Send test email** checks it). SolPnl then sends, once per event:
 
 Choose which on the **Notifications** card. For Gmail, Outlook.com and iCloud use an app password.
 
+Every alert is recorded on the **Alerts** page, even when no channel is set up yet; alerts from the last 24 hours are
+sent as soon as one is. Failed sends are retried every 15 minutes for up to 24 hours. History is kept for a year.
+
 ## Plugin settings
 Plugins can declare their own settings (`IConfigurablePlugin`: text, number, secret and choice fields, plus an optional
 test action). The Settings page shows a card for each enabled one. Secret values (passwords, API keys) are stored in
@@ -134,6 +139,7 @@ the database and never returned by the API: the card shows them as "Saved", with
 | `POST /api/v1/plugins/{id}/settings/test` | Run the plugin's test with unsaved values (e.g. send a test email) |
 | `GET/PUT /api/v1/notifications/preferences` | Which events notify, offline delay |
 | `POST /api/v1/notifications/test` | Send a test notification through every configured channel |
+| `GET /api/v1/alerts[?category=&limit=&before=]` | Ongoing conditions and alert history, newest first (page with `before` = last id) |
 | `GET /api/v1/settings` | Location and temperature unit |
 | `PUT /api/v1/settings/location` | `{ name, latitude, longitude, elevationMeters, timeZoneId }` |
 | `GET /api/v1/settings/location/search?q=` | Find places (needs the Open-Meteo plugin) |
