@@ -23,6 +23,20 @@
             </div>
             <FluentCheckbox Value="p.SolarUnderperformance" ValueChanged="@(v => Update(p with { SolarUnderperformance = v }))"
                             Label="Solar output falls below the forecast two sunny days in a row" />
+            <FluentCheckbox Value="p.GridOutage" ValueChanged="@(v => Update(p with { GridOutage = v }))"
+                            Label="Grid power goes out (and when it comes back)" />
+            <div class="inline">
+                <FluentCheckbox Value="p.GridVoltage" ValueChanged="@(v => Update(p with { GridVoltage = v }))"
+                                Label="Grid voltage stays outside" />
+                <FluentTextInput Value="@_lowText" ValueChanged="@(t => { _lowText = t; _message = null; })" Placeholder="Auto"
+                                 InputMode="TextInputMode.Decimal" Width="72px" aria-label="Lowest normal grid voltage (volts per leg)" />
+                <span>to</span>
+                <FluentTextInput Value="@_highText" ValueChanged="@(t => { _highText = t; _message = null; })" Placeholder="Auto"
+                                 InputMode="TextInputMode.Decimal" Width="72px" aria-label="Highest normal grid voltage (volts per leg)" />
+                <span>V for a minute</span>
+            </div>
+            <p class="hint">Grid alerts use the voltage your inverter reports. Leave the limits on Auto for 106–127 V per leg
+                (120 V service) or 207–253 V (230 V).</p>
             <FluentCheckbox Value="p.BackupFailed" ValueChanged="@(v => Update(p with { BackupFailed = v }))"
                             Label="A scheduled backup fails" />
 
@@ -54,7 +68,7 @@
 
 @code {
     private NotificationPreferences? _prefs;
-    private string? _minutesText;
+    private string? _minutesText, _lowText, _highText;
     private string? _message;
     private bool _ok, _busy;
     private IReadOnlyList<PluginActionResult>? _testResults;
@@ -64,6 +78,8 @@
         try
         {
             _prefs = await Api.GetNotificationPreferencesAsync();
+            _lowText = Volts(_prefs.GridVoltageLow);
+            _highText = Volts(_prefs.GridVoltageHigh);
         }
         catch (HttpRequestException ex)
         {
@@ -95,6 +111,14 @@
             return;
         }
 
+        if (!TryVolts(_lowText, out var low) || !TryVolts(_highText, out var high))
+        {
+            _ok = false;
+            _message = "Voltage limits must be numbers of volts, or empty for Auto.";
+            return;
+        }
+        _prefs = _prefs with { GridVoltageLow = low, GridVoltageHigh = high };
+
         _busy = true;
         try
         {
@@ -111,6 +135,18 @@
         {
             _busy = false;
         }
+    }
+
+    private static string? Volts(double? v) => v?.ToString("0.#", CultureInfo.CurrentCulture);
+
+    private static bool TryVolts(string? text, out double? volts)
+    {
+        volts = null;
+        if (string.IsNullOrWhiteSpace(text)) return true;
+        if (!double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out var v)
+            && !double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out v)) return false;
+        volts = v;
+        return true;
     }
 
     private async Task TestAsync()

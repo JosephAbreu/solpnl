@@ -124,6 +124,9 @@ public sealed class SolPnlApi(HttpClient http)
         return await http.GetFromJsonAsync<AlertsPage>("api/v1/alerts?" + string.Join("&", query), Json, ct) ?? new AlertsPage([], [], false);
     }
 
+    public async Task<GridHistory?> GetGridHistoryAsync(int days = 30, CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<GridHistory>($"api/v1/grid/events?days={days}", Json, ct);
+
     // ---- Backups --------------------------------------------------------------------------------------------
 
     public async Task<BackupStatus?> GetBackupsAsync(CancellationToken ct = default) =>
