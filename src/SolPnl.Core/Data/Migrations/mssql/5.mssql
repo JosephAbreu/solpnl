@@ -1,0 +1,13 @@
+-- 5: plugin-level settings, notification history (so each event is sent once)
+create table plugin_setting (
+    plugin_id nvarchar(100) not null,
+    setting_key nvarchar(100) not null,
+    value nvarchar(max) null,
+    constraint pk_plugin_setting primary key (plugin_id, setting_key)
+);
+
+create table notification_log (
+    event_key nvarchar(255) not null constraint pk_notification_log primary key,
+    raised_ms bigint not null,
+    cleared_ms bigint null
+);

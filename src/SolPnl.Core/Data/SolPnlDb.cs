@@ -21,6 +21,8 @@ public sealed class SolPnlDb(DbContextOptions<SolPnlDb> options) : DbContext(opt
     public DbSet<PluginStateEntity> PluginStates => Set<PluginStateEntity>();
     public DbSet<AppSettingEntity> AppSettings => Set<AppSettingEntity>();
     public DbSet<DaySummaryEntity> DaySummaries => Set<DaySummaryEntity>();
+    public DbSet<PluginSettingEntity> PluginSettings => Set<PluginSettingEntity>();
+    public DbSet<NotificationLogEntity> NotificationLog => Set<NotificationLogEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -137,6 +139,24 @@ public sealed class SolPnlDb(DbContextOptions<SolPnlDb> options) : DbContext(opt
             e.Property(x => x.GridWh).HasColumnName("grid_wh");
             e.Property(x => x.UpdatedMs).HasColumnName("updated_ms");
         });
+
+        modelBuilder.Entity<PluginSettingEntity>(e =>
+        {
+            e.ToTable("plugin_setting");
+            e.HasKey(x => new { x.PluginId, x.Key });
+            e.Property(x => x.PluginId).HasColumnName("plugin_id").HasMaxLength(100);
+            e.Property(x => x.Key).HasColumnName("setting_key").HasMaxLength(100);
+            e.Property(x => x.Value).HasColumnName("value");
+        });
+
+        modelBuilder.Entity<NotificationLogEntity>(e =>
+        {
+            e.ToTable("notification_log");
+            e.HasKey(x => x.EventKey);
+            e.Property(x => x.EventKey).HasColumnName("event_key").HasMaxLength(255).ValueGeneratedNever();
+            e.Property(x => x.RaisedMs).HasColumnName("raised_ms");
+            e.Property(x => x.ClearedMs).HasColumnName("cleared_ms");
+        });
     }
 }
 
@@ -249,4 +269,20 @@ public sealed class DaySummaryEntity
     public double? LoadWh { get; set; }
     public double? GridWh { get; set; }
     public long UpdatedMs { get; set; }
+}
+
+/// <summary>One plugin-level setting value (e.g. the SMTP host of the email plugin).</summary>
+public sealed class PluginSettingEntity
+{
+    public required string PluginId { get; set; }
+    public required string Key { get; set; }
+    public string? Value { get; set; }
+}
+
+/// <summary>An event a notification was sent for (and, for conditions like "offline", when it cleared).</summary>
+public sealed class NotificationLogEntity
+{
+    public required string EventKey { get; set; }
+    public long RaisedMs { get; set; }
+    public long? ClearedMs { get; set; }
 }

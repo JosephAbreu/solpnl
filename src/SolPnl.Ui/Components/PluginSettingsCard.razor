@@ -1,0 +1,201 @@
+@* A plugin's own settings, generated from the fields it declares. Secrets are write-only. *@
+@inject SolPnlApi Api
+
+@* No early "return" inside the element: that would leave <section> unclosed in the render tree. *@
+<section class="panel card" id="@($"plugin-{PluginId}")" aria-labelledby="@($"plugin-{PluginId}-heading")">
+    @if (_info is null)
+    {
+        @if (_loadError is not null)
+        {
+            <FluentMessageBar Intent="MessageBarIntent.Warning">@_loadError</FluentMessageBar>
+        }
+    }
+    else
+    {
+    <div class="head">
+        <h2 id="@($"plugin-{PluginId}-heading")">@_info.DisplayName</h2>
+        @if (_info.IsConfigured)
+        {
+            <span class="state"><FluentIcon Value="@(new Icons.Filled.Size16.CheckmarkCircle())" Color="Color.Custom" CustomColor="var(--status-good)" />Set up</span>
+        }
+        else
+        {
+            <span class="state muted"><FluentIcon Value="@(new Icons.Regular.Size16.Info())" Color="Color.Custom" CustomColor="currentColor" />Not set up yet</span>
+        }
+    </div>
+    @if (!string.IsNullOrEmpty(Description))
+    {
+        <p class="hint">@Description</p>
+    }
+
+    <form class="fields" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+        @foreach (var field in _info.Fields)
+        {
+            var id = $"plugin-{PluginId}-{field.Key}";
+            <div class="field">
+                @switch (field.Kind)
+                {
+                    case SettingKind.Choice:
+                        <label for="@id" class="field-label">@field.Label</label>
+                        <select id="@id" value="@(Get(field.Key) ?? field.Default)" @onchange="e => Set(field.Key, e.Value?.ToString())">
+                            @foreach (var option in field.Options ?? [])
+                            {
+                                <option value="@option">@option</option>
+                            }
+                        </select>
+                        break;
+
+                    case SettingKind.Secret when _info.SecretsSet.Contains(field.Key) && !_replacing.Contains(field.Key):
+                        <span class="field-label">@field.Label</span>
+                        <div class="secret-saved">
+                            <span>Saved (hidden)</span>
+                            <FluentButton Appearance="ButtonAppearance.Subtle" Size="ButtonSize.Small" OnClick="() => _replacing.Add(field.Key)">Change</FluentButton>
+                            <FluentButton Appearance="ButtonAppearance.Subtle" Size="ButtonSize.Small" OnClick="() => ClearSecret(field.Key)">Remove</FluentButton>
+                        </div>
+                        break;
+
+                    default:
+                        <FluentTextInput Id="@id" Value="@Get(field.Key)" ValueChanged="@(v => Set(field.Key, v))" Label="@field.Label"
+                                         Required="field.Required" Placeholder="@(field.Placeholder ?? field.Default)" Width="100%"
+                                         TextInputType="@(field.Kind == SettingKind.Secret ? TextInputType.Password : TextInputType.Text)"
+                                         InputMode="@(field.Kind == SettingKind.Number ? TextInputMode.Numeric : TextInputMode.Text)"
+                                         AutoComplete="@(field.Kind == SettingKind.Secret ? "new-password" : "off")" />
+                        break;
+                }
+                @if (!string.IsNullOrEmpty(field.Help))
+                {
+                    <p class="hint">@field.Help</p>
+                }
+            </div>
+        }
+
+        @if (_result is { } result)
+        {
+            <div class="full">
+                <FluentMessageBar Intent="@(result.Ok ? MessageBarIntent.Success : MessageBarIntent.Error)">@result.Message</FluentMessageBar>
+            </div>
+        }
+
+        <div class="actions full">
+            @if (_info.TestLabel is { } testLabel)
+            {
+                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="TestAsync" Disabled="_busy">@testLabel</FluentButton>
+            }
+            <FluentButton Type="ButtonType.Submit" Appearance="ButtonAppearance.Primary" Disabled="_busy" Loading="_busy">Save</FluentButton>
+        </div>
+    </form>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string PluginId { get; set; } = "";
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public EventCallback Saved { get; set; }
+
+    private PluginSettingsInfo? _info;
+    private readonly Dictionary<string, string?> _values = new();
+    private readonly HashSet<string> _replacing = new();
+    private readonly HashSet<string> _cleared = new();
+    private PluginActionResult? _result;
+    private string? _loadError;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _info = await Api.GetPluginSettingsAsync(PluginId);
+            Reset();
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadError = $"Couldn't load settings: {ex.Message}";
+        }
+    }
+
+    private void Reset()
+    {
+        _values.Clear();
+        _replacing.Clear();
+        _cleared.Clear();
+        if (_info is null) return;
+        foreach (var (key, value) in _info.Values) if (value is not null) _values[key] = value;
+    }
+
+    private string? Get(string key) => _values.GetValueOrDefault(key);
+
+    private void Set(string key, string? value)
+    {
+        _values[key] = value;
+        _result = null;
+    }
+
+    private void ClearSecret(string key)
+    {
+        _cleared.Add(key);
+        _replacing.Add(key);
+        _values[key] = null;
+    }
+
+    /// <summary>Form values for the API: untouched secrets are sent as null (keep), removed ones as "" (clear).</summary>
+    private Dictionary<string, string?> Request()
+    {
+        var request = new Dictionary<string, string?>();
+        foreach (var field in _info!.Fields)
+        {
+            var value = _values.GetValueOrDefault(field.Key);
+            if (field.Kind == SettingKind.Secret)
+                request[field.Key] = !string.IsNullOrEmpty(value) ? value : _cleared.Contains(field.Key) ? "" : null;
+            else
+                request[field.Key] = value ?? (field.Kind == SettingKind.Choice ? field.Default : null);
+        }
+        return request;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        _result = null;
+        try
+        {
+            var saved = await Api.SavePluginSettingsAsync(PluginId, Request());
+            if (saved.Value is { } info)
+            {
+                _info = info;
+                Reset();
+                _result = new PluginActionResult(true, info.IsConfigured ? "Saved." : "Saved. Fill in the required fields to finish setting it up.");
+                await Saved.InvokeAsync();
+            }
+            else
+            {
+                _result = new PluginActionResult(false, saved.Error ?? "Couldn't save.");
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            _result = new PluginActionResult(false, $"Can't reach SolPnl: {ex.Message}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task TestAsync()
+    {
+        _busy = true;
+        _result = null;
+        try
+        {
+            _result = await Api.TestPluginSettingsAsync(PluginId, Request());
+        }
+        catch (HttpRequestException ex)
+        {
+            _result = new PluginActionResult(false, $"Can't reach SolPnl: {ex.Message}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
