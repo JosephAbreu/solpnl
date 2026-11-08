@@ -1,0 +1,61 @@
+# Builds a fresh checkout and runs the tests on every pull request and every push to main, so a change that only
+# builds on the dev machine (a file left out of git, a missing package) is caught before it's merged.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore SolPnl.slnx
+
+      - name: Build
+        run: dotnet build SolPnl.slnx -c Release --no-restore
+
+      - name: Test
+        run: dotnet test SolPnl.slnx -c Release --no-build --filter "Category!=Containers" --blame-hang-timeout 5m
+
+      # The same publish deploy/deploy.ps1 runs for the Raspberry Pi.
+      - name: Publish for the Raspberry Pi (linux-arm64)
+        run: dotnet publish src/SolPnl.Api/SolPnl.Api.csproj -c Release -r linux-arm64 --self-contained true -o artifacts/publish/linux-arm64 -p:DebugType=none
+
+  databases:
+    name: Database tests (MySQL, MariaDB, SQL Server)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Testcontainers starts each database in Docker, which the runner provides.
+      - name: Test
+        run: dotnet test tests/SolPnl.Core.Tests/SolPnl.Core.Tests.csproj -c Release --filter "Category=Containers" --blame-hang-timeout 10m
