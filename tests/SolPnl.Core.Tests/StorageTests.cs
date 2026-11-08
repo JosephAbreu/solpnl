@@ -310,17 +310,21 @@ public abstract class StorageTests : IAsyncLifetime
         alerts.Alerts = [new WeatherAlert("nws-1", "Tornado Warning", "Tornado warning until 9 PM", "Extreme", "Immediate", T0, T0.AddHours(2), "Take shelter.", null, "NWS")];
         await site.RefreshAlertsAsync();
 
-        // Not configured yet: nothing is sent (and nothing recorded, so it's sent once it's set up).
+        // No channel set up yet: alerts are recorded (and shown as waiting) but nothing is sent.
         _time.Now = T0.AddMinutes(30);
         await service.RunOnceAsync();
         Assert.Empty(notifier.Sent);
         Assert.False((await service.SendTestAsync()).Ok);
+        var page = await service.GetAlertsAsync();
+        Assert.Equal(2, page.History.Count);
+        Assert.All(page.History, a => Assert.Equal(AlertDeliveryStatus.Waiting, a.Status));
+        Assert.Equal(2, page.Active.Count);
+        Assert.Contains(page.Active, a => a.Title == "Garage is offline" && a.Category == AlertCategories.Device);
 
+        // Once a channel is set up, the waiting alerts go out (once), and tests are recorded too.
         await pluginSettings.SaveAsync(notifier, new SavePluginSettingsRequest(new() { ["target"] = "me" }));
         Assert.True((await service.SendTestAsync()).Ok);
         notifier.Sent.Clear();
-
-        // Device silent for 30 minutes (> 10) and an active alert: one notification each.
         await service.RunOnceAsync();
         await service.RunOnceAsync();
         Assert.Equal(2, notifier.Sent.Count);
@@ -328,12 +332,30 @@ public abstract class StorageTests : IAsyncLifetime
         Assert.Contains(notifier.Sent, a => a.Title == "Tornado Warning" && a.Message.Contains("Take shelter."));
         Assert.Equal("me", notifier.LastSettings!["target"]);
 
-        // The device reports again: one "back online", once.
+        page = await service.GetAlertsAsync();
+        Assert.Equal(3, page.History.Count);
+        Assert.Equal(AlertCategories.Test, page.History[0].Category);   // newest first
+        Assert.All(page.History, a => Assert.Equal(AlertDeliveryStatus.Sent, a.Status));
+        Assert.Contains("Fake notifier: sent", page.History.First(a => a.Title == "Garage is offline").Delivery);
+        Assert.Equal("critical", page.History.First(a => a.Title == "Tornado Warning").Severity);
+        Assert.Single((await service.GetAlertsAsync(category: AlertCategories.Weather)).History);
+
+        // The device reports again: one "back online", once; the condition is no longer active.
         await store.SaveAsync(new DeviceInfo("fake-a", "Test", "Fake", null, null), [new Reading("fake-a", Metrics.PvPower, 1, "W", _time.Now)]);
         await service.RunOnceAsync();
         await service.RunOnceAsync();
         Assert.Equal(3, notifier.Sent.Count);
         Assert.Equal("Garage is back online", notifier.Sent[^1].Title);
+        page = await service.GetAlertsAsync();
+        Assert.DoesNotContain(page.Active, a => a.Category == AlertCategories.Device);
+        Assert.Equal("Garage is back online", page.History[0].Title);
+
+        // Paging.
+        var first = await service.GetAlertsAsync(limit: 2);
+        Assert.True(first.HasMore);
+        var rest = await service.GetAlertsAsync(limit: 2, beforeId: first.History[^1].Id);
+        Assert.Equal(2, rest.History.Count);
+        Assert.False(rest.HasMore);
 
         // Turning a category off stops it; a failing channel is retried later, not every minute.
         await service.SetPreferencesAsync(new NotificationPreferences(WeatherAlerts: false));
@@ -346,6 +368,9 @@ public abstract class StorageTests : IAsyncLifetime
         await service.SetPreferencesAsync(new NotificationPreferences());
         notifier.Fail = true;
         await service.RunOnceAsync();
+        var flood = (await service.GetAlertsAsync()).History.First(a => a.Title == "Flood Watch");
+        Assert.Equal(AlertDeliveryStatus.Failed, flood.Status);
+        Assert.Contains("Fake delivery failure", flood.Delivery);
         notifier.Fail = false;
         await service.RunOnceAsync();                 // still within the retry pause
         Assert.Equal(3, notifier.Sent.Count);
@@ -353,6 +378,20 @@ public abstract class StorageTests : IAsyncLifetime
         await store.SaveAsync(new DeviceInfo("fake-a", "Test", "Fake", null, null), [new Reading("fake-a", Metrics.PvPower, 1, "W", _time.Now)]);
         await service.RunOnceAsync();
         Assert.Equal("Flood Watch", notifier.Sent[^1].Title);
+        Assert.Equal(AlertDeliveryStatus.Sent, (await service.GetAlertsAsync()).History.First(a => a.Title == "Flood Watch").Status);
+
+        // Undeliverable for more than 24 hours: given up on (not sent) and not retried.
+        notifier.Fail = true;
+        alerts.Alerts = [new WeatherAlert("nws-3", "Heat Advisory", null, "Minor", null, null, null, null, null, null)];
+        await site.RefreshAlertsAsync();
+        await service.RunOnceAsync();
+        _time.Now = _time.Now.AddHours(25);
+        notifier.Fail = false;
+        var sentBefore = notifier.Sent.Count;
+        await store.SaveAsync(new DeviceInfo("fake-a", "Test", "Fake", null, null), [new Reading("fake-a", Metrics.PvPower, 1, "W", _time.Now)]);
+        await service.RunOnceAsync();
+        Assert.DoesNotContain(notifier.Sent.Skip(sentBefore), a => a.Title == "Heat Advisory");
+        Assert.Equal(AlertDeliveryStatus.NotSent, (await service.GetAlertsAsync()).History.First(a => a.Title == "Heat Advisory").Status);
     }
 
     private sealed class FakeNotifier : INotificationPlugin, IConfigurablePlugin

@@ -1,0 +1,18 @@
+@* Severity as an icon with an accessible label (never color alone; the title also names it). *@
+
+@switch (Severity)
+{
+    case "critical":
+        <span class="sev" role="img" aria-label="Critical"><FluentIcon Value="@(new Icons.Filled.Size20.ErrorCircle())" Color="Color.Custom" CustomColor="var(--status-critical)" /></span>
+        break;
+    case "warning":
+        <span class="sev" role="img" aria-label="Warning"><FluentIcon Value="@(new Icons.Filled.Size20.Warning())" Color="Color.Custom" CustomColor="#c98500" /></span>
+        break;
+    default:
+        <span class="sev" role="img" aria-label="Information"><FluentIcon Value="@(new Icons.Regular.Size20.Info())" Color="Color.Custom" CustomColor="var(--colorBrandForeground1)" /></span>
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired] public string Severity { get; set; } = "info";
+}

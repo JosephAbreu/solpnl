@@ -113,6 +113,14 @@ public sealed class SolPnlApi(HttpClient http)
         return result.Value ?? new NotificationTestResult(false, [new PluginActionResult(false, result.Error ?? "The test failed.")]);
     }
 
+    public async Task<AlertsPage> GetAlertsAsync(string? category = null, long? before = null, int limit = 50, CancellationToken ct = default)
+    {
+        var query = new List<string> { $"limit={limit}" };
+        if (!string.IsNullOrEmpty(category)) query.Add($"category={Uri.EscapeDataString(category)}");
+        if (before is { } b) query.Add($"before={b}");
+        return await http.GetFromJsonAsync<AlertsPage>("api/v1/alerts?" + string.Join("&", query), Json, ct) ?? new AlertsPage([], [], false);
+    }
+
     // ---- Plugins and device configuration --------------------------------------------------------------------
 
     public async Task<IReadOnlyList<PluginInfo>> GetPluginsAsync(CancellationToken ct = default) =>

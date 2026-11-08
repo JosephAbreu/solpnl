@@ -74,3 +74,43 @@ public sealed record DeviceTestResult(bool Ok, string Message, string? DeviceId 
 
 /// <summary>Error body for rejected management requests.</summary>
 public sealed record ApiError(string Error);
+
+public static class AlertCategories
+{
+    public const string Weather = "weather";
+    public const string Device = "device";
+    public const string Solar = "solar";
+    public const string Test = "test";
+}
+
+public static class AlertDeliveryStatus
+{
+    /// <summary>Delivered by at least one notification channel.</summary>
+    public const string Sent = "sent";
+    /// <summary>Every channel failed; SolPnl will try again.</summary>
+    public const string Failed = "failed";
+    /// <summary>No notification channel is set up yet; it will be sent once one is (within 24 hours).</summary>
+    public const string Waiting = "waiting";
+    /// <summary>Gave up: no channel was set up, or delivery kept failing, for 24 hours.</summary>
+    public const string NotSent = "not-sent";
+}
+
+/// <summary>One alert SolPnl raised, and what happened when it tried to send it.</summary>
+/// <param name="Severity">"info", "warning" or "critical".</param>
+/// <param name="Delivery">Per-channel results, e.g. "Email (SMTP): sent".</param>
+public sealed record AlertEntry(
+    long Id,
+    string Category,
+    string Severity,
+    string Title,
+    string Message,
+    string? DeviceId,
+    DateTimeOffset RaisedAt,
+    DateTimeOffset? DeliveredAt,
+    string Status,
+    string? Delivery);
+
+/// <summary>A condition that is still going on (e.g. a device that's offline, an active weather alert).</summary>
+public sealed record ActiveAlert(string Category, string Severity, string Title, DateTimeOffset Since, long? EntryId);
+
+public sealed record AlertsPage(IReadOnlyList<ActiveAlert> Active, IReadOnlyList<AlertEntry> History, bool HasMore);
