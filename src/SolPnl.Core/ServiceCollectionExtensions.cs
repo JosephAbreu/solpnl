@@ -41,6 +41,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<DaySummaryStore>();
         services.AddSingleton<SiteService>();
         services.AddSingleton<SavingsService>();
+        services.AddSingleton<ReportService>();
         services.Configure<SiteOptions>(configuration.GetSection("Site"));
         services.AddHostedService<SiteBackgroundService>();
 

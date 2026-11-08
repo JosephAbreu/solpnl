@@ -127,6 +127,12 @@ public sealed class SolPnlApi(HttpClient http)
     public async Task<SavingsSummary?> GetSavingsAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<SavingsSummary>("api/v1/site/savings", Json, ct);
 
+    public async Task<EnergyReport?> GetEnergyReportAsync(int? year, int? month, CancellationToken ct = default)
+    {
+        var query = year is null ? "" : month is null ? $"?year={year}" : $"?year={year}&month={month}";
+        return await http.GetFromJsonAsync<EnergyReport>($"api/v1/reports/energy{query}", Json, ct);
+    }
+
     public async Task<SavingsSettings> GetSavingsSettingsAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<SavingsSettings>("api/v1/settings/savings", Json, ct) ?? new SavingsSettings();
 

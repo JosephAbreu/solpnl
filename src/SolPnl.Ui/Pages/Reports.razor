@@ -1,0 +1,375 @@
+@page "/reports"
+@inject SolPnlApi Api
+@inject NavigationManager Nav
+
+<PageTitle>Reports · SolPnl</PageTitle>
+
+<div class="page">
+    <PageHeader Title="Reports" Subtitle="Solar, home use and money saved by year, month and day"
+                Icon="@(new Icons.Regular.Size24.DataBarVertical())" Breadcrumbs="@([("Home", ""), ("Reports", null)])">
+        <Commands>
+            <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowClockwise())" OnClick="LoadAsync">Refresh</FluentButton>
+        </Commands>
+    </PageHeader>
+
+    @if (_error is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Can't load the report">@_error</FluentMessageBar>
+    }
+
+    @if (_report is { } r)
+    {
+        <div class="filters">
+            <div class="period" role="group" aria-label="Period">
+                @if (r.Scope == ReportScopes.All)
+                {
+                    <h2 class="period-title">@PeriodTitle</h2>
+                }
+                else
+                {
+                    <button type="button" class="step" aria-label="@($"Previous {ScopeNoun}")" disabled="@(PreviousHref is null)"
+                            @onclick="@(() => Go(PreviousHref))">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.ChevronLeft())" Color="Color.Custom" CustomColor="currentColor" />
+                    </button>
+                    <h2 class="period-title">@PeriodTitle</h2>
+                    <button type="button" class="step" aria-label="@($"Next {ScopeNoun}")" disabled="@(NextHref is null)"
+                            @onclick="@(() => Go(NextHref))">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.ChevronRight())" Color="Color.Custom" CustomColor="currentColor" />
+                    </button>
+                }
+                @if (r.Scope == ReportScopes.Month)
+                {
+                    <a class="up" href="@Href(r.Year, null)">All of @r.Year</a>
+                }
+                @if (r.Scope != ReportScopes.All)
+                {
+                    <a class="up" href="reports?year=all">All years</a>
+                }
+            </div>
+
+            <div class="range-bar" role="group" aria-label="Chart shows">
+                <span class="range-label">Chart</span>
+                @foreach (var m in Metrics)
+                {
+                    var selected = m == _metric;
+                    <button type="button" class="range-option @(selected ? "selected" : null)" aria-pressed="@(selected ? "true" : "false")"
+                            @onclick="() => _metric = m">
+                        @Label(m)
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="tile-grid report-tiles">
+            <StatTile Label="Solar" Value="@Kwh(r.Total.SolarKwh)" Detail="@Compare(r.Total.SolarKwh, r.Previous?.SolarKwh)" />
+            <StatTile Label="Home use" Value="@Kwh(r.Total.LoadKwh)" Detail="@Compare(r.Total.LoadKwh, r.Previous?.LoadKwh)" />
+            <StatTile Label="From the grid" Value="@Kwh(r.Total.GridKwh)" Detail="@Compare(r.Total.GridKwh, r.Previous?.GridKwh)" />
+            <StatTile Label="Self-powered" Value="@Percent(r.Total.SelfPoweredPercent)"
+                      Detail="@(r.Previous?.SelfPoweredPercent is { } prevSelf ? $"{Percent(prevSelf)} a year earlier" : "Share of home use from solar")" />
+            @if (r.Currency is { } currency)
+            {
+                <StatTile Label="Saved" Value="@MetricFormat.Money(r.Total.Saved, currency)" Detail="@Compare(r.Total.Saved, r.Previous?.Saved, money: true)" />
+            }
+        </div>
+        @if (r.Previous is { } prior)
+        {
+            <p class="hint compare-note">
+                Compared with @PreviousRange.
+                @if (prior.Days < r.Total.Days * 0.9)
+                {
+                    <text>That period has only @prior.Days days recorded, against @r.Total.Days now, so the comparison is partial.</text>
+                }
+            </p>
+        }
+
+        <section class="panel chart-panel" aria-labelledby="chart-heading">
+            <div class="head">
+                <h2 id="chart-heading">@Label(_metric) @ChartSubtitle</h2>
+                @if (r.BestDay is { } best)
+                {
+                    <span class="muted">Best day: @best.Date.ToString("ddd, MMM d, yyyy", CultureInfo.CurrentCulture) · @Kwh(best.SolarKwh)</span>
+                }
+            </div>
+            <BarChart Categories="@Categories" Series="@ChartSeries" Format="@FormatMetric" TooltipTitle="@TooltipTitle"
+                      OnSelect="@(r.Scope == ReportScopes.Month ? default : EventCallback.Factory.Create<int>(this, Select))"
+                      Loading="_loading" AriaLabel="@($"{Label(_metric)} {ChartSubtitle}")" />
+        </section>
+
+        <section class="panel" aria-labelledby="table-heading">
+            <h2 id="table-heading">Details</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">@ColumnName</th>
+                            <th scope="col" class="num">Solar</th>
+                            <th scope="col" class="num">Home use</th>
+                            <th scope="col" class="num">From the grid</th>
+                            <th scope="col" class="num">Self-powered</th>
+                            @if (r.Currency is not null)
+                            {
+                                <th scope="col" class="num">Saved</th>
+                            }
+                            @if (HasPreviousPeriods)
+                            {
+                                <th scope="col" class="num">Solar a year earlier</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < r.Periods.Count; i++)
+                        {
+                            var p = r.Periods[i];
+                            if (p.Start > r.Today) continue;
+                            var previous = i < r.PreviousPeriods.Count ? r.PreviousPeriods[i] : null;
+                            if (p.Days == 0 && previous is null) continue;
+                            <tr>
+                                <th scope="row">
+                                    @if (SelectHref(p) is { } href)
+                                    {
+                                        <a href="@href">@RowLabel(p)</a>
+                                    }
+                                    else
+                                    {
+                                        @RowLabel(p)
+                                    }
+                                </th>
+                                <td class="num">@Kwh(p.SolarKwh)</td>
+                                <td class="num">@Kwh(p.LoadKwh)</td>
+                                <td class="num">@Kwh(p.GridKwh)</td>
+                                <td class="num">@Percent(p.SelfPoweredPercent)</td>
+                                @if (r.Currency is { } c)
+                                {
+                                    <td class="num">@MetricFormat.Money(p.Saved, c)</td>
+                                }
+                                @if (HasPreviousPeriods)
+                                {
+                                    <td class="num">@Kwh(previous?.SolarKwh)</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th scope="row">Total</th>
+                            <td class="num">@Kwh(r.Total.SolarKwh)</td>
+                            <td class="num">@Kwh(r.Total.LoadKwh)</td>
+                            <td class="num">@Kwh(r.Total.GridKwh)</td>
+                            <td class="num">@Percent(r.Total.SelfPoweredPercent)</td>
+                            @if (r.Currency is { } totalCurrency)
+                            {
+                                <td class="num">@MetricFormat.Money(r.Total.Saved, totalCurrency)</td>
+                            }
+                            @if (HasPreviousPeriods)
+                            {
+                                <td class="num">@Kwh(r.PreviousPeriods.Sum(p => p?.SolarKwh ?? 0) is var sum and > 0 ? sum : null)</td>
+                            }
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            @if (r.Total.Days == 0)
+            {
+                <p class="hint">Nothing recorded for this period. Totals build up from your devices' readings, one day at a time.</p>
+            }
+            else if (r.Currency is null)
+            {
+                <p class="hint"><a href="settings#savings">Set your electricity price</a> to add money saved.</p>
+            }
+        </section>
+    }
+    else if (_error is null)
+    {
+        <FluentProgressBar />
+    }
+</div>
+
+@code {
+    private enum Metric { Solar, Load, Grid, Saved }
+
+    [SupplyParameterFromQuery(Name = "year")] public string? YearParam { get; set; }
+    [SupplyParameterFromQuery(Name = "month")] public int? MonthParam { get; set; }
+
+    private EnergyReport? _report;
+    private Metric _metric = Metric.Solar;
+    private string? _error;
+    private bool _loading;
+
+    private IEnumerable<Metric> Metrics =>
+        _report?.Currency is null ? [Metric.Solar, Metric.Load, Metric.Grid] : [Metric.Solar, Metric.Load, Metric.Grid, Metric.Saved];
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private (int? Year, int? Month) Requested()
+    {
+        if (string.Equals(YearParam, "all", StringComparison.OrdinalIgnoreCase)) return (null, null);
+        if (int.TryParse(YearParam, NumberStyles.None, CultureInfo.InvariantCulture, out var year))
+            return (year, MonthParam is >= 1 and <= 12 ? MonthParam : null);
+        return (DateTime.Today.Year, null);
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var (year, month) = Requested();
+            _report = await Api.GetEnergyReportAsync(year, month);
+            _error = null;
+            if (_metric == Metric.Saved && _report?.Currency is null) _metric = Metric.Solar;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string Href(int? year, int? month) =>
+        year is null ? "reports?year=all" : month is null ? $"reports?year={year}" : $"reports?year={year}&month={month}";
+
+    private void Go(string? href)
+    {
+        if (href is not null) Nav.NavigateTo(href);
+    }
+
+    private string ScopeNoun => _report?.Scope switch { ReportScopes.Month => "month", ReportScopes.Year => "year", _ => "period" };
+
+    private string PeriodTitle => _report switch
+    {
+        { Scope: ReportScopes.Month, Year: { } y, Month: { } m } => new DateOnly(y, m, 1).ToString("MMMM yyyy", CultureInfo.CurrentCulture),
+        { Scope: ReportScopes.Year, Year: { } y } => y.ToString(CultureInfo.CurrentCulture),
+        _ => "All years",
+    };
+
+    private string ChartSubtitle => _report?.Scope switch
+    {
+        ReportScopes.Month => "by day",
+        ReportScopes.Year => "by month",
+        _ => "by year",
+    };
+
+    private string ColumnName => _report?.Scope switch { ReportScopes.Month => "Day", ReportScopes.Year => "Month", _ => "Year" };
+
+    /// <summary>Previous/next year or month, within the years that have data (and never past this month).</summary>
+    private string? PreviousHref => Step(-1);
+    private string? NextHref => Step(1);
+
+    private string? Step(int delta)
+    {
+        if (_report is not { Year: { } y } r || r.Years.Count == 0) return null;
+        var first = r.Years[0];
+        if (r.Month is { } m)
+        {
+            var target = new DateOnly(y, m, 1).AddMonths(delta);
+            if (target.Year < first || target > new DateOnly(r.Today.Year, r.Today.Month, 1)) return null;
+            return Href(target.Year, target.Month);
+        }
+        var year = y + delta;
+        return year < first || year > r.Today.Year ? null : Href(year, null);
+    }
+
+    /// <summary>The period a year earlier that the tiles compare with, e.g. "Jan 1 – Nov 7, 2025" or "October 2025".</summary>
+    private string PreviousRange
+    {
+        get
+        {
+            if (_report is not { Year: { } y } r) return "a year earlier";
+            var c = CultureInfo.CurrentCulture;
+            var start = r.Previous?.Start ?? new DateOnly(y - 1, r.Month ?? 1, 1);
+            if (IsInProgress)
+                return $"{start.ToString("MMM d", c)} – {r.Today.AddYears(-1).ToString("MMM d, yyyy", c)}";
+            return r.Month is null ? $"all of {y - 1}" : start.ToString("MMMM yyyy", c);
+        }
+    }
+
+    private bool IsInProgress => _report is { } r && r.Year == r.Today.Year && (r.Month is null || r.Month == r.Today.Month);
+
+    private string? Compare(double? current, double? previous, bool money = false)
+    {
+        if (current is not { } c || previous is not { } p) return null;
+        var prev = money && _report?.Currency is { } cur ? MetricFormat.Money(p, cur) : Kwh(p);
+        if (p <= 0) return $"{prev} a year earlier";
+        var change = (c - p) / p * 100;
+        var arrow = change >= 0.5 ? "▲" : change <= -0.5 ? "▼" : "";
+        return $"{arrow}{Math.Abs(change).ToString("0", CultureInfo.CurrentCulture)}% from {prev}".TrimStart();
+    }
+
+    private static string Kwh(double? kwh) => kwh is { } v ? MetricFormat.Format(v, "kWh") : "–";
+
+    private static string Percent(double? percent) => percent is { } v ? $"{v.ToString("0", CultureInfo.CurrentCulture)}%" : "–";
+
+    private string FormatMetric(double v) =>
+        _metric == Metric.Saved && _report?.Currency is { } c ? MetricFormat.Money(v, c) : MetricFormat.Format(v, "kWh");
+
+    private static string Label(Metric m) => m switch
+    {
+        Metric.Solar => "Solar",
+        Metric.Load => "Home use",
+        Metric.Grid => "From the grid",
+        _ => "Saved",
+    };
+
+    private static double? Value(EnergyPeriod? p, Metric m) => p is null ? null : m switch
+    {
+        Metric.Solar => p.SolarKwh,
+        Metric.Load => p.LoadKwh,
+        Metric.Grid => p.GridKwh,
+        _ => p.Saved,
+    };
+
+    private bool HasPreviousPeriods => _report?.PreviousPeriods.Any(p => p is not null) == true;
+
+    private IReadOnlyList<string> Categories => _report is not { } r ? [] : r.Scope switch
+    {
+        ReportScopes.Month => r.Periods.Select(p => p.Start.Day.ToString(CultureInfo.CurrentCulture)).ToList(),
+        ReportScopes.Year => r.Periods.Select(p => p.Start.ToString("MMM", CultureInfo.CurrentCulture)).ToList(),
+        _ => r.Periods.Select(p => p.Start.Year.ToString(CultureInfo.CurrentCulture)).ToList(),
+    };
+
+    private IReadOnlyList<BarSeries> ChartSeries
+    {
+        get
+        {
+            if (_report is not { } r) return [];
+            var current = new BarSeries(r.Scope == ReportScopes.Year ? $"{r.Year}" : Label(_metric), SeriesColors.Slot1,
+                r.Periods.Select(p => Value(p, _metric)).ToList());
+            if (!HasPreviousPeriods) return [current];
+            return [current, new BarSeries($"{r.Year - 1}", SeriesColors.Prior, r.PreviousPeriods.Select(p => Value(p, _metric)).ToList())];
+        }
+    }
+
+    private string TooltipTitle(int i)
+    {
+        if (_report is not { } r || i >= r.Periods.Count) return "";
+        var start = r.Periods[i].Start;
+        return r.Scope switch
+        {
+            ReportScopes.Month => start.ToString("ddd, MMM d, yyyy", CultureInfo.CurrentCulture),
+            ReportScopes.Year => start.ToString("MMMM", CultureInfo.CurrentCulture),
+            _ => start.Year.ToString(CultureInfo.CurrentCulture),
+        };
+    }
+
+    private string RowLabel(EnergyPeriod p) => _report?.Scope switch
+    {
+        ReportScopes.Month => p.Start.ToString("ddd, MMM d", CultureInfo.CurrentCulture),
+        ReportScopes.Year => p.Start.ToString("MMMM", CultureInfo.CurrentCulture),
+        _ => p.Start.Year.ToString(CultureInfo.CurrentCulture),
+    };
+
+    private string? SelectHref(EnergyPeriod p) => _report?.Scope switch
+    {
+        ReportScopes.Year => Href(p.Start.Year, p.Start.Month),
+        ReportScopes.All => Href(p.Start.Year, null),
+        _ => null,
+    };
+
+    private void Select(int i)
+    {
+        if (_report is { } r && i < r.Periods.Count && r.Periods[i].Start <= r.Today) Go(SelectHref(r.Periods[i]));
+    }
+}
