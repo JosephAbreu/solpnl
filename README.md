@@ -1,4 +1,6 @@
 # SolPnl
+[![CI](https://github.com/JosephAbreu/solpnl/actions/workflows/ci.yml/badge.svg)](https://github.com/JosephAbreu/solpnl/actions/workflows/ci.yml)
+
 A self-hosted web application for solar equipment monitoring
 <hr/>
 
