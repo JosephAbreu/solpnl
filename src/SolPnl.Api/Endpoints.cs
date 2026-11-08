@@ -1,3 +1,7 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using Microsoft.EntityFrameworkCore;
 using SolPnl.Contracts.Models;
 using SolPnl.Core.Data;
 using SolPnl.Core.Setup;
@@ -14,7 +18,30 @@ public static class Endpoints
 
         api.MapGet("/setup/status", () => new SetupStatus(setupRequired))
            .WithName("GetSetupStatus");
+
+        api.MapGet("/about", async (IServiceProvider services, CancellationToken ct) =>
+        {
+            // Storage services exist only once setup is done.
+            var database = services.GetService<DbSettings>() is { } settings
+                ? await DatabaseDescription.DescribeAsync(services.GetRequiredService<IDbContextFactory<SolPnlDb>>(), settings, ct)
+                : null;
+            return new AboutInfo(ServerVersion.Value, ServerCommit.Value, RuntimeInformation.FrameworkDescription,
+                $"{RuntimeInformation.OSDescription} ({RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant()})",
+                database, ProcessStart.Value);
+        }).WithName("GetAbout");
     }
+
+    private static readonly Lazy<string> ServerVersion = new(() =>
+        typeof(Endpoints).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown");
+
+    private static readonly Lazy<string?> ServerCommit = new(() =>
+        typeof(Endpoints).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "Commit")?.Value);
+
+    private static readonly Lazy<DateTimeOffset> ProcessStart = new(() =>
+    {
+        using var process = Process.GetCurrentProcess();
+        return new DateTimeOffset(process.StartTime.ToUniversalTime(), TimeSpan.Zero);
+    });
 
     /// <summary>Setup wizard endpoints; only mapped while no storage is configured.</summary>
     public static void MapSetupEndpoints(this RouteGroupBuilder api)

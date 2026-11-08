@@ -17,6 +17,9 @@ public sealed class SolPnlApi(HttpClient http)
     public async Task<SetupStatus> GetSetupStatusAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<SetupStatus>("api/v1/setup/status", Json, ct) ?? new SetupStatus(false);
 
+    public async Task<AboutInfo?> GetAboutAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<AboutInfo>("api/v1/about", Json, ct);
+
     public async Task<SetupDefaults?> GetSetupDefaultsAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<SetupDefaults>("api/v1/setup/defaults", Json, ct);
 

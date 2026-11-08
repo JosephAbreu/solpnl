@@ -1,0 +1,117 @@
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+    gap: 16px;
+    align-items: start;
+}
+
+    .cards > .panel {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-width: 0;
+    }
+
+h2 {
+    margin: 0;
+    font-size: var(--fontSizeBase400);
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+p {
+    margin: 0;
+    color: var(--colorNeutralForeground1);
+}
+
+.hint {
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+/* Same label style as the Essentials card: bold with a trailing colon. */
+dl {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 6px 12px;
+    margin: 0;
+}
+
+dt {
+    color: var(--colorNeutralForeground1);
+    font-weight: var(--fontWeightSemibold);
+}
+
+    dt::after {
+        content: ":";
+    }
+
+dd {
+    margin: 0;
+    color: var(--colorNeutralForeground1);
+    overflow-wrap: anywhere;
+}
+
+.rows {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+    .rows li + li {
+        border-top: 1px solid var(--colorNeutralStroke2);
+    }
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 4px;
+    color: var(--colorNeutralForeground1);
+    text-decoration: none;
+}
+
+    .row:hover {
+        background: var(--colorNeutralBackground1Hover);
+    }
+
+    .row:focus-visible {
+        outline: 2px solid var(--colorStrokeFocus2);
+        outline-offset: -2px;
+    }
+
+.row-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.row-title {
+    font-weight: var(--fontWeightSemibold);
+}
+
+.row-sub {
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+.brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--fontSizeBase500);
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+@media (max-width: 500px) {
+    dl {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0 12px;
+    }
+
+    dd + dt {
+        margin-top: 6px;
+    }
+}
