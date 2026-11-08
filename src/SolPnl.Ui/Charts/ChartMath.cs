@@ -143,4 +143,6 @@ public static class SeriesColors
     public const string Slot1 = "var(--series-1)";
     public const string Slot2 = "var(--series-2)";
     public const string Slot3 = "var(--series-3)";
+    /// <summary>The same period a year earlier, beside the current one.</summary>
+    public const string Prior = "var(--series-prior)";
 }
