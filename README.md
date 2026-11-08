@@ -49,6 +49,8 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
   The dashboard shows the same "today" section and any active weather alerts.
 - **Settings** – the location (search for a place, or enter coordinates), units (US or metric), which events send
   notifications (with a test button), and a card for each enabled plugin that has its own settings (e.g. Email).
+- **Backups** – status, the backups on the server (download, restore, delete), the daily schedule, and restoring
+  from an uploaded file. See [Backups](#backups).
 - **Plugins** – installed plugins with their device counts. **Disable** pauses all of a plugin's devices (settings and
   history are kept); **Enable** resumes them.
 - **About** (ⓘ in the top bar) – web app and server versions (with a reload prompt when the browser has an older web
@@ -125,6 +127,25 @@ Choose which on the **Notifications** card. For Gmail, Outlook.com and iCloud us
 Every alert is recorded on the **Alerts** page, even when no channel is set up yet; alerts from the last 24 hours are
 sent as soon as one is. Failed sends are retried every 15 minutes for up to 24 hours. History is kept for a year.
 
+## Backups
+SolPnl backs up its database every day (02:30 in your location's time zone by default) and keeps the newest 14,
+in `backups` in the data directory (`/var/lib/solpnl/backups` on the Pi). Change the time, how many to keep and the
+folder on the **Backups** page, or select **Back up now**.
+
+- **Format:** a zip with `manifest.json` and one JSON-lines file per table. Rows go through SolPnl's data model, not the
+  database's own dump tool, so a backup restores into any supported database: move from SQLite to MariaDB by setting
+  up the new storage and restoring a backup taken on the old one.
+- **Passwords are never in backups** (e.g. the email password), so files are safe to copy around. A restore keeps the
+  passwords already set on the server; on a fresh install, enter them again.
+- **Restore** a backup on the server or an uploaded file. SolPnl restarts, backs up the current data ("before a restore"),
+  then replaces it in one transaction: if anything fails, nothing changes. The page reconnects when SolPnl is back
+  (a few minutes; longer with a lot of history).
+- **Off the device:** a failed SD card takes local backups with it. Download one now and then, or point the folder at a
+  network share. On the Pi the service may only write to `/var/lib/solpnl`; for another folder add
+  `ReadWritePaths=/path/to/folder` to `/etc/systemd/system/solpnl.service`, then
+  `sudo systemctl daemon-reload && sudo systemctl restart solpnl`.
+- A scheduled backup that fails raises a **System** alert (and a notification, if enabled in Settings).
+
 ## Plugin settings
 Plugins can declare their own settings (`IConfigurablePlugin`: text, number, secret and choice fields, plus an optional
 test action). The Settings page shows a card for each enabled one. Secret values (passwords, API keys) are stored in
@@ -133,6 +154,12 @@ the database and never returned by the API: the card shows them as "Saved", with
 ## API
 | Endpoint | Description |
 |---|---|
+| `GET /api/v1/backups` | Backup status, schedule and the backups on the server |
+| `PUT /api/v1/backups/settings` | `{ enabled, time: "HH:mm", keep, folder }` (folder null = default) |
+| `POST /api/v1/backups` | Start a backup (202; poll `GET /api/v1/backups`) |
+| `GET/DELETE /api/v1/backups/{name}` | Download or delete a backup |
+| `POST /api/v1/backups/{name}/restore` | Restore a backup on the server (SolPnl restarts) |
+| `POST /api/v1/backups/restore` | Restore an uploaded backup (body: the zip; SolPnl restarts) |
 | `GET /api/v1/about` | Server version, commit, runtime, OS, database and start time |
 | `GET /api/v1/devices` | Devices with stored data |
 | `DELETE /api/v1/devices/{deviceId}` | Delete the history of a device that is no longer configured |

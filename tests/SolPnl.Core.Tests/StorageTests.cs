@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SolPnl.Contracts.Models;
 using SolPnl.Contracts.Plugins;
+using SolPnl.Core.Backup;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
 using SolPnl.Core.Notifications;
@@ -649,6 +650,185 @@ public abstract class StorageTests : IAsyncLifetime
         Assert.Equal(1, await db.Readings.CountAsync());
     }
 
+    // ---- Backups -------------------------------------------------------------------------------------------
+
+    private static readonly SecretKeys TestSecrets = new(new Dictionary<string, IReadOnlySet<string>>
+    {
+        ["email-smtp"] = new HashSet<string> { "password" },
+        ["fake"] = new HashSet<string> { "secret" },
+    });
+
+    private long Schema() => Migrations().GetScripts().Max(s => s.Number);
+
+    private async Task<string> WriteBackupAsync(IDbContextFactory<SolPnlDb> factory, DbSettings settings)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"solpnl-backup-test-{Guid.NewGuid():N}.zip");
+        await using var file = File.Create(path);
+        await BackupArchive.WriteAsync(factory, settings, Schema(), TestSecrets, file, _time, CancellationToken.None);
+        return path;
+    }
+
+    /// <summary>A device with readings, settings (with secrets), an alert, a day summary and a backup schedule.</summary>
+    private async Task SeedAsync(IDbContextFactory<SolPnlDb> factory, string password, string schedule)
+    {
+        var store = new EfReadingStore(factory, Options.Create(_retention), _time);
+        await store.SaveAsync(Inverter, [R(Metrics.PvPower, 1000, "W", T0), R(Metrics.LoadPower, 600, "W", T0)]);
+        await store.SaveAsync(Inverter, [R(Metrics.PvPower, 1200.5, "W", T0.AddSeconds(10))]);
+
+        await using var db = await factory.CreateDbContextAsync();
+        db.DeviceConfigs.Add(new DeviceConfigEntity
+        {
+            Name = "Garage", PluginId = "fake", DeviceKey = "fake-a", CreatedAtMs = 1,
+            SettingsJson = "{\"id\":\"a\",\"secret\":\"device-pass\"}",
+        });
+        db.PluginSettings.Add(new PluginSettingEntity { PluginId = "email-smtp", Key = "host", Value = "smtp.example.com" });
+        db.PluginSettings.Add(new PluginSettingEntity { PluginId = "email-smtp", Key = "password", Value = password });
+        db.AppSettings.Add(new AppSettingEntity { Key = BackupService.SettingsKey, Value = schedule });
+        db.AlertHistory.Add(new AlertHistoryEntity
+        {
+            EventKey = "offline:x", Category = "device", Severity = "critical", Title = "Inverter is offline",
+            Message = AlertText, RaisedMs = 5,
+        });
+        db.DaySummaries.Add(new DaySummaryEntity { Day = "2026-11-07", SolarWh = 12345.5, ForecastHigh = null, UpdatedMs = 9 });
+        await db.SaveChangesAsync();
+    }
+
+    private const string AlertText = "Line one\nLine two \"quoted\" ✓";
+
+    [Fact]
+    public async Task Backup_RestoresEverything_ButNeverWritesSecrets()
+    {
+        await Migrations().MigrateAsync();
+        await SeedAsync(_factory, password: "old-pass", schedule: "from-backup");
+        var path = await WriteBackupAsync(_factory, _settings);
+        try
+        {
+            // Secrets are left out of the file.
+            using (var zip = System.IO.Compression.ZipFile.OpenRead(path))
+            {
+                var all = string.Join("\n", zip.Entries.Select(e => new StreamReader(e.Open()).ReadToEnd()));
+                Assert.DoesNotContain("old-pass", all);
+                Assert.DoesNotContain("device-pass", all);
+                Assert.Contains("smtp.example.com", all);
+                var manifest = BackupArchive.ReadManifest(zip, Schema());
+                Assert.Equal(3, manifest.Tables["reading"]);
+                Assert.False(manifest.SecretsIncluded);
+            }
+
+            // Change things after the backup: new secrets, schedule and readings; delete the alert and the day.
+            await using (var db = await _factory.CreateDbContextAsync())
+            {
+                (await db.PluginSettings.SingleAsync(s => s.Key == "password")).Value = "current-pass";
+                (await db.DeviceConfigs.SingleAsync()).SettingsJson = "{\"id\":\"a\",\"secret\":\"current-device-pass\"}";
+                (await db.AppSettings.SingleAsync(s => s.Key == BackupService.SettingsKey)).Value = "on-this-machine";
+                db.AlertHistory.RemoveRange(db.AlertHistory);
+                db.DaySummaries.RemoveRange(db.DaySummaries);
+                await db.SaveChangesAsync();
+            }
+            await Store().SaveAsync(Inverter, [R(Metrics.PvPower, 1, "W", T0.AddSeconds(20))]);
+
+            await BackupArchive.RestoreAsync(_factory, _settings, Schema(), TestSecrets, path, CancellationToken.None);
+
+            await using (var db = await _factory.CreateDbContextAsync())
+            {
+                Assert.Equal(3, await db.Readings.CountAsync());
+                Assert.Equal(AlertText, (await db.AlertHistory.SingleAsync()).Message);
+                Assert.Equal(12345.5, (await db.DaySummaries.SingleAsync()).SolarWh);
+                Assert.Equal("smtp.example.com", (await db.PluginSettings.SingleAsync(s => s.Key == "host")).Value);
+                // Secrets and the schedule on this machine are kept.
+                Assert.Equal("current-pass", (await db.PluginSettings.SingleAsync(s => s.Key == "password")).Value);
+                Assert.Contains("current-device-pass", (await db.DeviceConfigs.SingleAsync()).SettingsJson);
+                Assert.Equal("on-this-machine", (await db.AppSettings.SingleAsync(s => s.Key == BackupService.SettingsKey)).Value);
+            }
+
+            // New ids carry on after the restored ones (identity/auto-increment counters are right).
+            await using (var db = await _factory.CreateDbContextAsync())
+            {
+                var maxId = await db.AlertHistory.MaxAsync(a => a.Id);
+                var added = new AlertHistoryEntity { EventKey = "k", Category = "test", Severity = "info", Title = "t", Message = "m", RaisedMs = 6 };
+                db.AlertHistory.Add(added);
+                await db.SaveChangesAsync();
+                Assert.True(added.Id > maxId);
+            }
+            await Store().SaveAsync(new DeviceInfo("other", "v", "m", null, null), [R(Metrics.PvPower, 2, "W", T0)]);
+            Assert.Equal(2, (await Store().GetDevicesAsync()).Count);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Backup_FromSqlite_RestoresIntoThisDatabase()
+    {
+        var sqlitePath = Path.Combine(Path.GetTempPath(), $"solpnl-source-{Guid.NewGuid():N}.db");
+        var sourceSettings = new DbSettings(DbDriver.Sqlite, $"Data Source={sqlitePath};Pooling=false");
+        var source = new Factory(sourceSettings);
+        string? path = null;
+        try
+        {
+            await new MigrationService(source, sourceSettings, NullLogger<MigrationService>.Instance).MigrateAsync();
+            await SeedAsync(source, password: "p", schedule: "s");
+            path = await WriteBackupAsync(source, sourceSettings);
+
+            await Migrations().MigrateAsync();
+            await BackupArchive.RestoreAsync(_factory, _settings, Schema(), TestSecrets, path, CancellationToken.None);
+
+            await using var db = await _factory.CreateDbContextAsync();
+            Assert.Equal(3, await db.Readings.CountAsync());
+            Assert.Equal(2, await db.Metrics.CountAsync());
+            Assert.Equal("Inverter is offline", (await db.AlertHistory.SingleAsync()).Title);
+            // A fresh machine has no secrets to keep, so the password is simply absent.
+            Assert.False(await db.PluginSettings.AnyAsync(s => s.Key == "password"));
+        }
+        finally
+        {
+            if (path is not null) File.Delete(path);
+            foreach (var suffix in new[] { "", "-wal", "-shm" }) File.Delete(sqlitePath + suffix);
+        }
+    }
+
+    [Fact]
+    public async Task Restore_RefusesNewerBackups_AndFailedRestoresChangeNothing()
+    {
+        await Migrations().MigrateAsync();
+        await SeedAsync(_factory, password: "p", schedule: "s");
+        var path = await WriteBackupAsync(_factory, _settings);
+        var broken = path + ".broken.zip";
+        try
+        {
+            var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+                BackupArchive.RestoreAsync(_factory, _settings, Schema() - 1, TestSecrets, path, CancellationToken.None));
+            Assert.Contains("newer version", error.Message);
+
+            // Corrupt the last table: the restore fails part-way and rolls back.
+            using (var source = System.IO.Compression.ZipFile.OpenRead(path))
+            using (var target = System.IO.Compression.ZipFile.Open(broken, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                foreach (var entry in source.Entries)
+                {
+                    var text = new StreamReader(entry.Open()).ReadToEnd();
+                    if (entry.Name == "alert_history.jsonl") text += "{ not json\n";
+                    using var writer = new StreamWriter(target.CreateEntry(entry.FullName).Open());
+                    writer.Write(text);
+                }
+            }
+            await Store().SaveAsync(Inverter, [R(Metrics.PvPower, 1, "W", T0.AddSeconds(20))]);
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                BackupArchive.RestoreAsync(_factory, _settings, Schema(), TestSecrets, broken, CancellationToken.None));
+
+            await using var db = await _factory.CreateDbContextAsync();
+            Assert.Equal(4, await db.Readings.CountAsync()); // untouched, including the reading added after the backup
+            Assert.Equal(1, await db.AlertHistory.CountAsync());
+        }
+        finally
+        {
+            File.Delete(path);
+            File.Delete(broken);
+        }
+    }
+
     private static Reading R(string metric, double value, string unit, DateTimeOffset ts) =>
         new(Inverter.DeviceId, metric, value, unit, ts);
 
@@ -677,7 +857,7 @@ public sealed class SqliteStorageTests : StorageTests
 
     public override Task DisposeAsync()
     {
-        File.Delete(_path);
+        foreach (var suffix in new[] { "", "-wal", "-shm" }) File.Delete(_path + suffix);
         return Task.CompletedTask;
     }
 }

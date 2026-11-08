@@ -167,6 +167,23 @@ public sealed class NotificationService(
         }
     }
 
+    /// <summary>
+    /// Raises an alert about SolPnl itself (e.g. a failed backup) once, until <see cref="ClearSystemAsync"/> is called,
+    /// if the matching preference allows it. Delivered with the next notification check (within a minute).
+    /// </summary>
+    public async Task RaiseSystemAsync(string key, AlertSeverity severity, string title, string message,
+        Func<NotificationPreferences, bool> enabled, CancellationToken ct = default)
+    {
+        if (!enabled(await GetPreferencesAsync(ct))) return;
+        await RaiseAsync(key, AlertCategories.System, new Alert(key, severity, title, message, time.GetUtcNow()), ct);
+    }
+
+    /// <summary>Closes a condition raised with <see cref="RaiseSystemAsync"/>, optionally recording a "resolved" alert.</summary>
+    public Task ClearSystemAsync(string key, string? recoveryTitle = null, string? recoveryMessage = null, CancellationToken ct = default) =>
+        ClearAsync(key, AlertCategories.System, recoveryTitle is null
+            ? null
+            : new Alert(key, AlertSeverity.Info, recoveryTitle, recoveryMessage ?? recoveryTitle, time.GetUtcNow()), ct);
+
     /// <summary>Records an alert unless its condition is already open; then marks the condition open.</summary>
     private async Task RaiseAsync(string key, string category, Alert alert, CancellationToken ct)
     {

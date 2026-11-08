@@ -44,6 +44,8 @@
             <dl>
                 <dt>Running since</dt>
                 <dd>@(_about is null ? "–" : $"{_about.StartedAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.CurrentCulture)} ({Uptime(_about.StartedAt)})")</dd>
+                <dt>Last backup</dt>
+                <dd>@LastBackupText</dd>
                 <dt>Database</dt>
                 <dd>@(_about is null ? "–" : _about.Database ?? "Not set up yet")</dd>
                 <dt>Runtime</dt>
@@ -137,6 +139,19 @@
     };
 
     private AboutInfo? _about;
+    private BackupStatus? _backups;
+
+    private RenderFragment LastBackupText => __builder =>
+    {
+        if (_backups?.LastBackup is not { } last)
+        {
+            <a href="backups">@(_backups is null ? "–" : "None yet")</a>
+        }
+        else
+        {
+            <a href="backups">@(last.Ok ? "" : "Failed, ")@last.At.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.CurrentCulture)</a>
+        }
+    };
     private bool _loading = true;
     private string? _error;
 
@@ -145,6 +160,7 @@
         try
         {
             _about = await Api.GetAboutAsync();
+            _backups = await Api.GetBackupsAsync();
         }
         catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
         {

@@ -49,7 +49,8 @@ public sealed record NotificationPreferences(
     bool WeatherAlerts = true,
     bool DeviceOffline = true,
     int OfflineMinutes = 10,
-    bool SolarUnderperformance = true);
+    bool SolarUnderperformance = true,
+    bool BackupFailed = true);
 
 public sealed record NotificationTestResult(bool Ok, IReadOnlyList<PluginActionResult> Results);
 
@@ -81,6 +82,9 @@ public static class AlertCategories
     public const string Device = "device";
     public const string Solar = "solar";
     public const string Test = "test";
+
+    /// <summary>SolPnl itself, e.g. a backup that failed.</summary>
+    public const string System = "system";
 }
 
 public static class AlertDeliveryStatus

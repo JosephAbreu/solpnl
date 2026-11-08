@@ -14,7 +14,7 @@
                         }
                         else
                         {
-                            <a href="@href">@label</a>
+                            <a href="@(href.Length == 0 ? "./" : href)">@label</a>
                         }
                     </li>
                 }
