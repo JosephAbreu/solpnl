@@ -82,6 +82,7 @@
 
                     <div class="tile-grid">
                         <StatTile Label="Solar power" Value="@Value(Metrics.PvPower)" />
+                        <StatTile Label="Solar voltage" Value="@StringValues(Metrics.PvVoltage)" />
                         <StatTile Label="Load" Value="@Value(Metrics.LoadPower)" />
                         @if (Has(Metrics.GridPower))
                         {
@@ -240,6 +241,13 @@
 
     private string Value(string metric) =>
         _latest.TryGetValue(metric, out var r) ? MetricFormat.Format(r.Value, r.Unit) : "–";
+
+    /// <summary>Per-PV-string values side by side ("228.6 V / 191.6 V"), like the per-leg grid voltage tile.</summary>
+    private string StringValues(string metric)
+    {
+        var strings = Enumerable.Range(1, 8).Select(i => Metrics.ForString(metric, i)).Where(Has).ToList();
+        return strings.Count > 0 ? string.Join(" / ", strings.Select(Value)) : Value(metric);
+    }
 
     private string PhasePair(string metric)
     {
