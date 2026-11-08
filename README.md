@@ -42,11 +42,13 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
   and payback progress), plus solar/load and per-string charts.
 - **Devices** – every device with status and last reading; filterable (also from the header search).
   **Add device** picks a device type and builds its settings form from the plugin, with **Test connection**.
-- **Device page** – Essentials (including any fault the inverter reports right now), current values and charts (Overview tab), and every reported metric with a chart
+- **Device page** – **Download CSV** saves every metric for the selected time range. Essentials (including any
+  fault the inverter reports right now), current values and charts (Overview tab), and every reported metric with a chart
   for any of them (Metrics tab). **Remove** stops polling and forgets the settings; history is kept unless you choose
   to delete it too. Devices with history only can have it deleted.
 - **Reports** – solar, home use, energy from the grid, the share of home use solar covered, and money saved, by
-  year, month or day, each compared with a year earlier; click a year or month to drill in.
+  year, month or day, each compared with a year earlier; click a year or month to drill in. **Download CSV** saves
+  the period's daily figures for a spreadsheet.
 - **Alerts** – what's going on now (offline devices, grid outages, active weather alerts, solar warnings), grid power
   over the last 30 days (outages and voltage problems), and the history of every
   alert with its delivery result (sent, failed and retrying, waiting for a channel, or not sent); filter by category.
@@ -189,6 +191,8 @@ the database and never returned by the API: the card shows them as "Saved", with
 | `GET /api/v1/site/savings` | Money saved: today, month, year, total, payback, per month |
 | `GET/PUT /api/v1/settings/savings` | `{ currency, rates: [{ from, pricePerKwh, summerPricePerKwh }], systemCost }` |
 | `GET /api/v1/reports/energy[?year=2026[&month=11]]` | Energy and money by year, by month of a year, or by day of a month, with a year earlier |
+| `GET /api/v1/export/days.csv[?from=&to=]` | Daily summaries as CSV (local dates; default: everything recorded) |
+| `GET /api/v1/export/readings.csv?device=…[&from=&to=&resolution=&metric=…]` | A device's readings as CSV, one column per metric (averages for minute/hour); raw up to 7 days, minute up to 92 |
 | `GET /api/v1/backups` | Backup status, schedule and the backups on the server |
 | `PUT /api/v1/backups/settings` | `{ enabled, time: "HH:mm", keep, folder }` (folder null = default) |
 | `POST /api/v1/backups` | Start a backup (202; poll `GET /api/v1/backups`) |
