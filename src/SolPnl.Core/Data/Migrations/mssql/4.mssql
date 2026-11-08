@@ -1,0 +1,16 @@
+-- 4: one row per local day: sun times, forecast (as it stood before the day), actuals
+create table day_summary (
+    day nvarchar(10) not null constraint pk_day_summary primary key,
+    sunrise_ms bigint null,
+    sunset_ms bigint null,
+    forecast_high float null,
+    forecast_low float null,
+    forecast_irradiation float null,
+    clear_sky_irradiation float null,
+    actual_high float null,
+    actual_low float null,
+    solar_wh float null,
+    load_wh float null,
+    grid_wh float null,
+    updated_ms bigint not null
+);

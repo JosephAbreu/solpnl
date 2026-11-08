@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
 using SolPnl.Core.Polling;
+using SolPnl.Core.Site;
 using SolPnl.Core.Storage;
 
 namespace SolPnl.Core;
@@ -30,6 +31,14 @@ public static class ServiceCollectionExtensions
 
         // Device configuration and running device instances. Plugin types are registered by the host as IDevicePluginType.
         services.AddSingleton<DeviceRegistry>();
+
+        // Location, weather, alerts, daily summaries and insights. Weather/alert providers are registered by the host.
+        services.AddSingleton<SiteSettingsStore>();
+        services.AddSingleton<PluginCatalog>();
+        services.AddSingleton<DaySummaryStore>();
+        services.AddSingleton<SiteService>();
+        services.Configure<SiteOptions>(configuration.GetSection("Site"));
+        services.AddHostedService<SiteBackgroundService>();
 
         services.Configure<PollingOptions>(configuration.GetSection("Polling"));
         services.AddHostedService<PollingService>();

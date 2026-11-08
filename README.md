@@ -15,6 +15,8 @@ and alerting on the server, and depends on outside services only when a plugin y
 | `src/SolPnl.Ui` | Shared UI (Fluent UI Blazor): layout, pages, components and SVG charts; reusable by a future MAUI Blazor Hybrid app |
 | `src/SolPnl.Web` | Blazor WebAssembly PWA host for `SolPnl.Ui` |
 | `src/plugins/SolPnl.Plugin.SolarmanSrne` | Solarman V5 logger + SRNE-family inverters (e.g. Sungoldpower 10kW split phase) |
+| `src/plugins/SolPnl.Plugin.OpenMeteo` | Weather service plugin: conditions, forecasts, solar irradiance and place search (open-meteo.com) |
+| `src/plugins/SolPnl.Plugin.NwsAlerts` | Weather alert service plugin: official US watches and warnings (api.weather.gov) |
 | `src/plugins/SolPnl.Plugin.Simulator` | Simulated inverter for development (registered only in the Development environment) |
 | `src/plugins/SolPnl.Plugin.Notify.Smtp` | Email notifications (not implemented yet) |
 | `tools/SolPnl.Probe` | CLI to verify local access to a Solarman logger and dump raw registers |
@@ -40,6 +42,10 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
 - **Device page** – Essentials, current values and charts (Overview tab), and every reported metric with a chart
   for any of them (Metrics tab). **Remove** stops polling and forgets the settings; history is kept unless you choose
   to delete it too. Devices with history only can have it deleted.
+- **Weather** – sun times, current conditions, today's forecast vs actual temperatures, solar insights, weather charts
+  (temperature, sunlight, cloud cover) and a daily history (forecast vs actual, sunlight, solar/load/grid energy).
+  The dashboard shows the same "today" section and any active weather alerts.
+- **Settings** – the location (search for a place, or enter coordinates) and temperature unit (°F/°C).
 - **Plugins** – installed plugins with their device counts. **Disable** pauses all of a plugin's devices (settings and
   history are kept); **Enable** resumes them.
 
@@ -82,6 +88,22 @@ because it can contain a database password. To change storage later, edit or rem
 The schema is created and updated at startup from numbered SQL scripts in
 `src/SolPnl.Core/Data/Migrations/<driver>/`. Every schema change needs a new script for **each** driver.
 
+## Location, weather and insights
+Set the location in **Settings**. Then:
+- **Sun times** (sunrise, sunset, solar noon, daylight) and **clear-sky sunlight** are calculated on the machine (NOAA
+  solar position formulas), with no network access.
+- **Weather** comes from a weather service plugin (Open-Meteo by default; free, no API key). Current conditions are
+  logged every 15 minutes as readings of the reserved device `site-weather`, so they get history, summaries and charts
+  like device data.
+- **Daily summaries** keep each day's forecast as it stood before the day began, next to what actually happened:
+  high/low from the logged weather, and solar/load/grid energy from device readings.
+- **Insights**: tomorrow's solar outlook (kWh, once SolPnl has learned your system from 3 sunny days), the best
+  window for heavy loads, and a check that solar output matches the forecast (flags two low sunny days in a row).
+- **Weather alerts** come from the NWS plugin (US only). Disable it on the Plugins page outside the US.
+
+Weather and alert plugins are *service* plugins and can be disabled on the Plugins page; sensors on your network
+would be *device* plugins.
+
 ## API
 | Endpoint | Description |
 |---|---|
@@ -91,8 +113,14 @@ The schema is created and updated at startup from numbered SQL scripts in
 | `POST /api/v1/config/devices` | Add a device: `{ name, pluginId, settings }` |
 | `POST /api/v1/config/devices/test` | Try a device's settings (connects and reads once, saves nothing) |
 | `DELETE /api/v1/config/devices/{id}[?deleteHistory=true]` | Remove a device |
-| `GET /api/v1/plugins` | Installed plugins, with settings schema and device counts |
+| `GET /api/v1/plugins` | Installed plugins (device and service), with settings schema and device counts |
 | `PUT /api/v1/plugins/{id}` | Enable or disable: `{ enabled }` |
+| `GET /api/v1/settings` | Location and temperature unit |
+| `PUT /api/v1/settings/location` | `{ name, latitude, longitude, elevationMeters, timeZoneId }` |
+| `GET /api/v1/settings/location/search?q=` | Find places (needs the Open-Meteo plugin) |
+| `PUT /api/v1/settings/units` | `{ temperatureUnit: "F" \| "C" }` |
+| `GET /api/v1/site/overview` | Sun times, weather now, today's summary, tomorrow's forecast, insights, alerts |
+| `GET /api/v1/site/days[?from=&to=]` | Daily summaries (local dates, default last 30 days) |
 | `GET /api/v1/readings/latest[?device=]` | Latest value of every metric |
 | `GET /api/v1/readings/history?device=&metric=[&from=&to=&resolution=]` | Values over a range (default: last 24 h) |
 

@@ -33,7 +33,8 @@ public static class DeviceDirectory
         await Task.WhenAll(pluginsTask, configsTask, reportedTask, latestTask);
 
         var plugins = pluginsTask.Result.ToDictionary(p => p.Id);
-        var reported = reportedTask.Result.ToDictionary(d => d.DeviceId);
+        // Weather is logged under a reserved device key; it isn't hardware, so it's not listed as a device.
+        var reported = reportedTask.Result.Where(d => d.DeviceId != SiteDevices.Weather).ToDictionary(d => d.DeviceId);
         var last = latestTask.Result.GroupBy(r => r.DeviceId).ToDictionary(g => g.Key, g => g.Max(r => r.Timestamp));
 
         var rows = configsTask.Result.Select(c => new DeviceRow(

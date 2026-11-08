@@ -1,0 +1,158 @@
+@page "/weather"
+@implements IDisposable
+@inject SolPnlApi Api
+@inject NavigationManager Nav
+
+<PageTitle>Weather · SolPnl</PageTitle>
+
+<div class="page">
+    <PageHeader Title="Weather" Subtitle="@Subtitle" Icon="@(new Icons.Regular.Size24.WeatherPartlyCloudyDay())"
+                Breadcrumbs="@([("Home", ""), ("Weather", null)])">
+        <Commands>
+            <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowClockwise())" OnClick="LoadAsync">Refresh</FluentButton>
+            <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.Location())" OnClick="@(() => Nav.NavigateTo("settings"))">Location</FluentButton>
+        </Commands>
+    </PageHeader>
+
+    @if (_error is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Can't reach the SolPnl service">@_error</FluentMessageBar>
+    }
+
+    <SiteToday Overview="_overview" />
+
+    @if (_overview?.Location is not null)
+    {
+        <TimeRangeBar Value="_range" ValueChanged="SetRange" />
+
+        <div class="card-grid">
+            <MetricChartCard Title="Outdoor temperature" DeviceId="@SiteDevices.Weather" Range="_range" RefreshKey="_refresh" ZeroBaseline="false"
+                             Series="@([new(WeatherMetrics.Temperature, "Temperature", SeriesColors.Slot1)])" />
+            <MetricChartCard Title="Sunlight (irradiance)" DeviceId="@SiteDevices.Weather" Range="_range" RefreshKey="_refresh"
+                             Series="@([new(WeatherMetrics.Irradiance, "Sunlight", SeriesColors.Slot2)])" />
+            <MetricChartCard Title="Cloud cover" DeviceId="@SiteDevices.Weather" Range="_range" RefreshKey="_refresh"
+                             Series="@([new(WeatherMetrics.CloudCover, "Cloud cover", SeriesColors.Slot1)])" />
+        </div>
+
+        <section class="panel days" aria-labelledby="days-heading">
+            <h2 id="days-heading">Daily history</h2>
+            <p class="hint">Forecast is what was predicted before each day began. Actual temperatures come from the weather
+                SolPnl logged; energy from your devices. Sunlight is the forecast total on a flat surface, and the share of a clear day.</p>
+            @if (_days.Count == 0)
+            {
+                <p class="hint">Days appear here as SolPnl collects them.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th scope="col">Day</th>
+                                <th scope="col">Sunrise</th>
+                                <th scope="col">Sunset</th>
+                                <th scope="col" class="num">Forecast high / low</th>
+                                <th scope="col" class="num">Actual high / low</th>
+                                <th scope="col" class="num">Sunlight forecast</th>
+                                <th scope="col" class="num">Solar</th>
+                                <th scope="col" class="num">Load</th>
+                                <th scope="col" class="num">Grid</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in _days.OrderByDescending(d => d.Date))
+                            {
+                                <tr>
+                                    <th scope="row">@d.Date.ToString("ddd, MMM d", CultureInfo.CurrentCulture)</th>
+                                    <td>@MetricFormat.Time(d.Sunrise)</td>
+                                    <td>@MetricFormat.Time(d.Sunset)</td>
+                                    <td class="num">@MetricFormat.Temperature(d.ForecastHighC) / @MetricFormat.Temperature(d.ForecastLowC)</td>
+                                    <td class="num">@MetricFormat.Temperature(d.ActualHighC) / @MetricFormat.Temperature(d.ActualLowC)</td>
+                                    <td class="num">@Sunlight(d)</td>
+                                    <td class="num">@Kwh(d.SolarKwh)</td>
+                                    <td class="num">@Kwh(d.LoadKwh)</td>
+                                    <td class="num">@Kwh(d.GridKwh)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "range")] public string? RangeKey { get; set; }
+
+    private SiteOverview? _overview;
+    private IReadOnlyList<DaySummary> _days = [];
+    private TimeRange _range = TimeRange.Last24Hours;
+    private int _refresh;
+    private string? _error;
+    private readonly CancellationTokenSource _cts = new();
+
+    private string Subtitle => _overview?.Location is { } l
+        ? $"{l.Name ?? "Your location"} · {_overview.WeatherSource ?? "no weather source"}"
+          + (_overview.WeatherUpdated is { } u ? $" · updated {MetricFormat.Ago(u, DateTimeOffset.UtcNow)}" : "")
+        : "Conditions, forecasts and daily history";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _ = PollAsync(_cts.Token);
+    }
+
+    protected override void OnParametersSet() => _range = TimeRange.FromKey(RangeKey);
+
+    private void SetRange(TimeRange range) => Nav.NavigateTo(Nav.GetUriWithQueryParameter("range", range.Key));
+
+    private async Task PollAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _overview = await Api.GetSiteOverviewAsync(_cts.Token);
+            _days = await Api.GetDaySummariesAsync(ct: _cts.Token);
+            _refresh++;
+            _error = null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            _error = ex.Message;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private static string Kwh(double? kwh) => kwh is { } v ? $"{v.ToString("N1", CultureInfo.CurrentCulture)} kWh" : "–";
+
+    private static string Sunlight(DaySummary d)
+    {
+        if (d.ForecastIrradiationKwhM2 is not { } f) return "–";
+        var share = d.ClearSkyIrradiationKwhM2 is > 0 and var c ? $" ({Math.Min(1, f / c).ToString("P0", CultureInfo.CurrentCulture)})" : "";
+        return $"{f.ToString("N1", CultureInfo.CurrentCulture)} kWh/m²{share}";
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

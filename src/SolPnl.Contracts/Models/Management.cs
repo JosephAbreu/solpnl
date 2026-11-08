@@ -6,6 +6,8 @@ public static class PluginKinds
 {
     public const string Device = "device";
     public const string Notification = "notification";
+    /// <summary>Weather, alerts and other data services (not hardware).</summary>
+    public const string Service = "service";
 }
 
 /// <summary>An installed plugin and whether it's enabled. Disabled device plugins don't poll any of their devices.</summary>

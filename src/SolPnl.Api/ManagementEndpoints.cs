@@ -1,5 +1,6 @@
 using SolPnl.Contracts.Models;
 using SolPnl.Core.Devices;
+using SolPnl.Core.Site;
 using SolPnl.Core.Storage;
 
 namespace SolPnl.Api;
@@ -11,14 +12,14 @@ public static class ManagementEndpoints
     {
         var plugins = api.MapGroup("/plugins");
 
-        plugins.MapGet("", (DeviceRegistry registry, CancellationToken ct) => registry.GetPluginsAsync(ct))
+        plugins.MapGet("", (PluginCatalog catalog, CancellationToken ct) => catalog.GetPluginsAsync(ct))
                .WithName("GetPlugins");
 
-        plugins.MapPut("/{id}", async (string id, SetPluginEnabledRequest request, DeviceRegistry registry, CancellationToken ct) =>
+        plugins.MapPut("/{id}", async (string id, SetPluginEnabledRequest request, PluginCatalog catalog, CancellationToken ct) =>
         {
             try
             {
-                return Results.Ok(await registry.SetPluginEnabledAsync(id, request.Enabled, ct));
+                return Results.Ok(await catalog.SetEnabledAsync(id, request.Enabled, ct));
             }
             catch (KeyNotFoundException ex)
             {
