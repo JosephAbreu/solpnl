@@ -54,6 +54,12 @@
                     <span> · wind @Wind(wind)</span>
                 }
             </div>
+            @if (Overview.Pressure is { } p)
+            {
+                <div class="detail">
+                    Pressure @MetricFormat.Pressure(p.Hpa)@PressureTendency(p)
+                </div>
+            }
         }
         else
         {
@@ -107,6 +113,17 @@
 
 @code {
     [Parameter] public SiteOverview? Overview { get; set; }
+
+    /// <summary>", falling" / ", rising rapidly" with the 3-hour change, or nothing until 3 hours of history exist.</summary>
+    private static string PressureTendency(PressureTrend p)
+    {
+        if (p.ChangeHpa3h is not { } change) return "";
+        var arrow = p.Tendency switch { "rising" => "↑", "falling" => "↓", _ => "→" };
+        var amount = MetricFormat.TemperatureUnit == TemperatureUnits.Fahrenheit
+            ? $"{change * MetricFormat.HpaToInHg:+0.00;-0.00;0.00} inHg"
+            : $"{change:+0.0;-0.0;0.0} hPa";
+        return $", {arrow} {p.Tendency}{(p.Rapid ? " rapidly" : "")} ({amount} in 3 h)";
+    }
 
     private static string Wind(double kmh) =>
         MetricFormat.TemperatureUnit == TemperatureUnits.Fahrenheit

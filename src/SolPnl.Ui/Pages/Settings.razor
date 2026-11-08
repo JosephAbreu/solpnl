@@ -68,8 +68,8 @@
 
     <section class="panel section" aria-labelledby="units-heading">
         <h2 id="units-heading">Units</h2>
-        <div class="options" role="radiogroup" aria-label="Temperature unit">
-            @foreach (var (unit, label) in new[] { (TemperatureUnits.Fahrenheit, "Fahrenheit (°F)"), (TemperatureUnits.Celsius, "Celsius (°C)") })
+        <div class="options" role="radiogroup" aria-label="Units">
+            @foreach (var (unit, label) in new[] { (TemperatureUnits.Fahrenheit, "US (°F, inHg, mph)"), (TemperatureUnits.Celsius, "Metric (°C, hPa, km/h)") })
             {
                 <label class="option @(_unit == unit ? "selected" : null)">
                     <input type="radio" name="temperature" value="@unit" checked="@(_unit == unit)" @onchange="() => SetUnitAsync(unit)" />

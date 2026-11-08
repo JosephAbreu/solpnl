@@ -121,3 +121,29 @@ public class MetricFormatTests
         public void Dispose() => CultureInfo.CurrentCulture = _previous;
     }
 }
+
+public class PressureUnitTests
+{
+    [Fact]
+    public void Pressure_FollowsTheUnitChoice()
+    {
+        var previousCulture = CultureInfo.CurrentCulture;
+        var previousUnit = MetricFormat.TemperatureUnit;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("en-US");
+            MetricFormat.TemperatureUnit = SolPnl.Contracts.Models.TemperatureUnits.Fahrenheit;
+            Assert.Equal("30.09 inHg", MetricFormat.Pressure(1019.1));
+            Assert.Equal("inHg", MetricFormat.ToDisplay(1019.1, "hPa").Unit);
+
+            MetricFormat.TemperatureUnit = SolPnl.Contracts.Models.TemperatureUnits.Celsius;
+            Assert.Equal("1,019 hPa", MetricFormat.Pressure(1019.1));
+            Assert.Equal("–", MetricFormat.Pressure(null));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+            MetricFormat.TemperatureUnit = previousUnit;
+        }
+    }
+}
