@@ -1,9 +1,42 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <!--
+    Published to nuget.org for plugin authors (.github/workflows/publish-contracts.yml, on a contracts-v* tag).
+    The package has its own version, separate from SolPnl's {year}.{month}.{build}: bump it when the plugin API changes.
+    0.x: minor versions may make breaking changes.
+  -->
+  <PropertyGroup>
+    <SolPnlContractsVersion>0.1.0</SolPnlContractsVersion>
+    <PackageId>SolPnl.Contracts</PackageId>
+    <PackageVersion>$(SolPnlContractsVersion)</PackageVersion>
+    <!--
+      Plugins compiled against this version load in any SolPnl whose Contracts has the same or a higher assembly
+      version. Set explicitly (not from $(Version)) so SolPnl's own release version doesn't change it.
+    -->
+    <AssemblyVersion>$([System.Version]::Parse('$(SolPnlContractsVersion)').ToString(2)).0.0</AssemblyVersion>
+    <Authors>Joseph Abreu</Authors>
+    <Description>Plugin interfaces and models for SolPnl, a self-hosted solar monitoring app. Reference this package to build a SolPnl plugin: a device type (inverters, meters, sensors), a weather or alert service, or a notification channel.</Description>
+    <PackageTags>solpnl;solar;inverter;plugin;home-automation</PackageTags>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/JosephAbreu/solpnl</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/JosephAbreu/solpnl</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Not every public member (or record parameter) has a doc comment yet. -->
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
 </Project>

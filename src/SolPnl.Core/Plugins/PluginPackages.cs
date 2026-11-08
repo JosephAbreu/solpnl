@@ -134,7 +134,9 @@ public sealed class PluginPackages : IDisposable
         {
             package.Types.Clear();
             package.State = PluginPackageStates.Failed;
+            // FileLoadException: built against a newer SolPnl.Contracts than this SolPnl has.
             package.Error = ex is ReflectionTypeLoadException or TypeLoadException or MissingMethodException or FileNotFoundException
+                or FileLoadException
                 ? $"It doesn't work with this version of SolPnl: {ex.Message}"
                 : ex.Message;
             context.Unload();

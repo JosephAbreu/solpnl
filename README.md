@@ -204,13 +204,13 @@ on uploads in `appsettings.Local.json`:
 ```
 
 ### Making a plugin package
-A plugin is a .NET 10 class library that references `SolPnl.Contracts` (for now, a project reference to
-`src/SolPnl.Contracts` in a clone of this repository; it isn't published as a NuGet package yet) and has public classes implementing
+A plugin is a .NET 10 class library that references the [SolPnl.Contracts](https://www.nuget.org/packages/SolPnl.Contracts)
+NuGet package (see its README for a ready-made project file) and has public classes implementing
 `IDevicePluginType`, `IWeatherProvider`, `IWeatherAlertProvider` or `INotificationPlugin` (see the built-in plugins in
 `src/plugins`). SolPnl creates each one through dependency injection, so its constructor can take an `HttpClient`, an
 `ILogger<T>` or other SolPnl services.
 1. Set `<EnableDynamicLoading>true</EnableDynamicLoading>` in the project so the build output includes every library
-   it uses.
+   it uses, and reference the package with `ExcludeAssets="runtime"` (SolPnl supplies its own copy).
 2. Add a `plugin.json`, copied to the output:
    ```json
    {
@@ -223,6 +223,15 @@ A plugin is a .NET 10 class library that references `SolPnl.Contracts` (for now,
    `id` is lower case letters, digits, `.` and `-`; one package per id.
 3. `dotnet build -c Release`, then zip the contents of `bin/Release/net10.0` (64 MB at most). SolPnl's own libraries
    (SolPnl.Contracts, .NET, Microsoft.Extensions) always come from SolPnl, so the package's copies are ignored.
+
+### Publishing SolPnl.Contracts
+The package has its own version (`<SolPnlContractsVersion>` in `src/SolPnl.Contracts/SolPnl.Contracts.csproj`),
+separate from SolPnl's. Bump it when the plugin API changes, merge, then push a matching tag:
+```sh
+git tag contracts-v0.1.0 && git push origin contracts-v0.1.0
+```
+The **Publish SolPnl.Contracts** workflow builds, tests and pushes it to nuget.org with Trusted Publishing (no API key).
+SolPnl refuses plugins built against a newer SolPnl.Contracts than the one it ships, and lists them under **Not running**.
 
 ## Plugin settings
 Plugins can declare their own settings (`IConfigurablePlugin`: text, number, secret and choice fields, plus an optional
