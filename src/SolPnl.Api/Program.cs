@@ -112,6 +112,7 @@ static WebApplication BuildApp(string[] args, RestartSignal restart)
         api.MapManagementEndpoints();
         api.MapSiteEndpoints();
         api.MapBackupEndpoints();
+        api.MapExportEndpoints();
     }
 
     // Unknown API routes get a JSON error instead of the web app's index.html.

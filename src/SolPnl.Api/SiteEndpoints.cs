@@ -110,7 +110,7 @@ public static class SiteEndpoints
         }).WithName("GetEnergyReport");
     }
 
-    private static bool TryDate(string? value, DateOnly fallback, out DateOnly date)
+    internal static bool TryDate(string? value, DateOnly fallback, out DateOnly date)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
