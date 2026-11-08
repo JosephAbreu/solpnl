@@ -1,8 +1,11 @@
 @* Which events send notifications, and a test button that goes through every configured channel. *@
 @inject SolPnlApi Api
 
-<section class="panel card" aria-labelledby="notifications-heading">
-    <h2 id="notifications-heading">Notifications</h2>
+<section class="panel card" id="notifications" aria-labelledby="notifications-heading">
+    <div class="head">
+        <h2 id="notifications-heading">Notifications</h2>
+        <a href="alerts">View alert history</a>
+    </div>
     <p class="hint">SolPnl sends these through every enabled notification plugin that's set up (below). Each event is sent
         once; offline devices also get a message when they're back.</p>
 
