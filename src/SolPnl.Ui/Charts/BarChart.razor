@@ -1,0 +1,82 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="chart viz-root @(Loading ? "is-loading" : null)">
+    @if (Series.Count > 1)
+    {
+        <ul class="legend" aria-label="Legend">
+            @foreach (var s in Series)
+            {
+                <li><span class="bar-key" style="background:@s.Color"></span>@s.Name</li>
+            }
+        </ul>
+    }
+
+    <div class="plot" @ref="_container" style="height:@(Height)px">
+        @if (_width > 0 && _layout is { } l)
+        {
+            <svg width="@_width" height="@Height" role="img" aria-label="@AriaLabel">
+                @foreach (var tick in l.YTicks)
+                {
+                    var y = l.Y(tick);
+                    <line class="grid" x1="@F(l.Left)" x2="@F(l.Left + l.PlotWidth)" y1="@F(y)" y2="@F(y)" />
+                    <g><text class="tick" x="@F(l.Left - 8)" y="@F(y)" text-anchor="end" dominant-baseline="middle">@MetricFormat.Tick(tick, l.YStep)</text></g>
+                }
+
+                @if (_hover is { } hovered)
+                {
+                    <rect class="hover-band" x="@F(l.GroupX(hovered))" y="@F(l.Top)" width="@F(l.GroupWidth)" height="@F(l.PlotHeight)" />
+                }
+
+                @foreach (var bar in l.Bars)
+                {
+                    <path d="@bar.Path" fill="@bar.Color" />
+                }
+                <line class="axis" x1="@F(l.Left)" x2="@F(l.Left + l.PlotWidth)" y1="@F(l.Y(0))" y2="@F(l.Y(0))" />
+
+                @for (var i = 0; i < Categories.Count; i++)
+                {
+                    if (i % l.LabelEvery != 0) continue;
+                    <g><text class="tick" x="@F(l.GroupX(i) + l.GroupWidth / 2)" y="@F(Height - 6)" text-anchor="middle">@Categories[i]</text></g>
+                }
+            </svg>
+
+            @if (l.IsEmpty)
+            {
+                <div class="empty" style="left:@F(l.Left)px; top:@F(l.Top)px; width:@F(l.PlotWidth)px; height:@F(l.PlotHeight)px">
+                    @EmptyText
+                </div>
+            }
+            else
+            {
+                <div class="hit @(OnSelect.HasDelegate ? "selectable" : null)" tabindex="0"
+                     aria-label="@($"{AriaLabel}. Use the left and right arrow keys to read values{(OnSelect.HasDelegate ? ", Enter to open one" : "")}.")"
+                     style="left:@F(l.Left)px; top:@F(l.Top)px; width:@F(l.PlotWidth)px; height:@F(l.PlotHeight)px"
+                     @onpointermove="OnPointerMove" @onpointerleave="ClearHover" @onblur="ClearHover"
+                     @onclick="OnClick" @onkeydown="OnKeyDown"></div>
+            }
+
+            @if (_hover is { } tip)
+            {
+                var x = l.GroupX(tip) + l.GroupWidth / 2;
+                <div class="tooltip @(x > l.Left + l.PlotWidth / 2 ? "left" : "right")" role="status"
+                     style="left:@F(x)px; top:@F(l.Top)px">
+                    <div class="tooltip-time">@(TooltipTitle?.Invoke(tip) ?? Categories[tip])</div>
+                    @foreach (var s in Series)
+                    {
+                        var value = tip < s.Values.Count ? s.Values[tip] : null;
+                        <div class="tooltip-row">
+                            <span class="bar-key" style="background:@s.Color"></span>
+                            <strong>@(value is { } v ? FormatValue(v) : "–")</strong>
+                            <span class="tooltip-name">@s.Name</span>
+                        </div>
+                    }
+                    @if (OnSelect.HasDelegate)
+                    {
+                        <div class="tooltip-hint">Click for details</div>
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
