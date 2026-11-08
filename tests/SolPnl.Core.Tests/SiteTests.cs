@@ -162,6 +162,11 @@ public class InsightCalculatorTests
         twoLow.AddRange(Enumerable.Range(3, 8).Select(i => Day(i, 4, 20)));
         var warning = InsightCalculator.Compute(Inputs(LocalTime(9), twoLow)).Single(i => i.Kind == InsightKinds.Underperformance);
         Assert.Equal(InsightLevels.Warning, warning.Level);
+        Assert.Contains("both PV strings", warning.Message);
+
+        var srne = InsightCalculator.Compute(Inputs(LocalTime(9), twoLow) with { PvInputName = "line" })
+            .Single(i => i.Kind == InsightKinds.Underperformance);
+        Assert.Contains("both PV lines", srne.Message);
         Assert.Contains("50%", warning.Message);
 
         var oneLow = new List<DaySummary> { Day(1, 4, 10) };
