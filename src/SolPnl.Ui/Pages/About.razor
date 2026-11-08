@@ -1,0 +1,165 @@
+@page "/about"
+@using System.Reflection
+@inject SolPnlApi Api
+
+@* Reached from the info button in the top bar. *@
+<PageTitle>About · SolPnl</PageTitle>
+
+<div class="page">
+    <PageHeader Title="About SolPnl" Subtitle="Self-hosted monitoring for your home solar system" Icon="@(new Icons.Regular.Size24.Info())"
+                Breadcrumbs="@([("Home", ""), ("About", null)])" />
+
+    @if (_about is not null && WebVersion != ServerVersionText(_about.Version))
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Info" Title="A newer web app is available">
+            This page is from version @WebVersion but the server is running @ServerVersionText(_about.Version).
+            <a href="about" onclick="location.reload(); return false;">Reload</a> to get the latest.
+        </FluentMessageBar>
+    }
+
+    <div class="cards">
+        <section class="panel" aria-labelledby="version-heading">
+            <h2 id="version-heading">Version</h2>
+            <dl>
+                <dt>Web app</dt>
+                <dd>@WebVersion</dd>
+                <dt>Server</dt>
+                <dd>@(_loading ? "Checking…" : _about is null ? "Unavailable" : ServerVersionText(_about.Version))</dd>
+                <dt>Build</dt>
+                <dd>@BuildLabel(_about?.Version ?? FullWebVersion)</dd>
+                @if (_about?.Commit is { } commit)
+                {
+                    <dt>Commit</dt>
+                    <dd><a href="@($"{Repository}/commit/{commit}")" target="_blank" rel="noopener">@commit</a></dd>
+                }
+            </dl>
+        </section>
+
+        <section class="panel" aria-labelledby="server-heading">
+            <h2 id="server-heading">Server</h2>
+            @if (_error is not null)
+            {
+                <p class="hint">Can't reach the SolPnl service: @_error</p>
+            }
+            <dl>
+                <dt>Running since</dt>
+                <dd>@(_about is null ? "–" : $"{_about.StartedAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.CurrentCulture)} ({Uptime(_about.StartedAt)})")</dd>
+                <dt>Database</dt>
+                <dd>@(_about is null ? "–" : _about.Database ?? "Not set up yet")</dd>
+                <dt>Runtime</dt>
+                <dd>@(_about?.Runtime ?? "–")</dd>
+                <dt>System</dt>
+                <dd>@(_about?.OperatingSystem ?? "–")</dd>
+            </dl>
+        </section>
+
+        <section class="panel" aria-labelledby="project-heading">
+            <h2 id="project-heading">Project</h2>
+            <ul class="rows">
+                <li>
+                    <a class="row" href="@Repository" target="_blank" rel="noopener">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.Code())" Color="Color.Primary" />
+                        <span class="row-main"><span class="row-title">Source code</span><span class="row-sub">github.com/JosephAbreu/solpnl</span></span>
+                        <FluentIcon Value="@(new Icons.Regular.Size16.Open())" Class="external" />
+                    </a>
+                </li>
+                <li>
+                    <a class="row" href="@($"{Repository}#readme")" target="_blank" rel="noopener">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.BookOpen())" Color="Color.Primary" />
+                        <span class="row-main"><span class="row-title">Documentation</span><span class="row-sub">How to install, set up and use SolPnl</span></span>
+                        <FluentIcon Value="@(new Icons.Regular.Size16.Open())" Class="external" />
+                    </a>
+                </li>
+                <li>
+                    <a class="row" href="@($"{Repository}/issues")" target="_blank" rel="noopener">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.Bug())" Color="Color.Primary" />
+                        <span class="row-main"><span class="row-title">Report a problem</span><span class="row-sub">Questions, problems and feedback</span></span>
+                        <FluentIcon Value="@(new Icons.Regular.Size16.Open())" Class="external" />
+                    </a>
+                </li>
+            </ul>
+        </section>
+
+        <section class="panel" aria-labelledby="credits-heading">
+            <h2 id="credits-heading">Data sources</h2>
+            <ul class="rows">
+                <li>
+                    <a class="row" href="https://open-meteo.com/" target="_blank" rel="noopener">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.WeatherPartlyCloudyDay())" Color="Color.Primary" />
+                        <span class="row-main"><span class="row-title">Weather data by Open-Meteo.com</span><span class="row-sub">Forecasts, irradiance and place search, licensed under CC BY 4.0</span></span>
+                        <FluentIcon Value="@(new Icons.Regular.Size16.Open())" Class="external" />
+                    </a>
+                </li>
+                <li>
+                    <a class="row" href="https://www.weather.gov/" target="_blank" rel="noopener">
+                        <FluentIcon Value="@(new Icons.Regular.Size20.Warning())" Color="Color.Primary" />
+                        <span class="row-main"><span class="row-title">National Weather Service</span><span class="row-sub">Severe weather alerts for US locations</span></span>
+                        <FluentIcon Value="@(new Icons.Regular.Size16.Open())" Class="external" />
+                    </a>
+                </li>
+            </ul>
+            <p class="hint">Sunrise, sunset and clear-sky estimates are calculated on your SolPnl server.</p>
+        </section>
+
+        <section class="panel" aria-labelledby="copyright-heading">
+            <h2 id="copyright-heading">Copyright</h2>
+            <div class="brand">
+                <FluentIcon Value="@(new Icons.Filled.Size24.WeatherSunny())" Color="Color.Custom" CustomColor="#f2b705" />
+                <span>SolPnl</span>
+            </div>
+            <p>© @DateTime.Now.Year Joseph Abreu LLC</p>
+            <p class="hint">
+                Licensed under the <a href="@($"{Repository}/blob/main/LICENSE.txt")" target="_blank" rel="noopener">Apache License 2.0</a>.
+                Built with .NET, Blazor, Fluent UI Blazor, Entity Framework Core and MailKit.
+            </p>
+        </section>
+    </div>
+</div>
+
+@code {
+    private const string Repository = "https://github.com/JosephAbreu/solpnl";
+
+    // {year}.{month}.{build}; "+local" when run from source, "+modified" for a release with uncommitted changes
+    // (Directory.Build.props / deploy.ps1).
+    private static readonly string FullWebVersion = typeof(About).Assembly
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "";
+
+    private static string WebVersion => ServerVersionText(FullWebVersion);
+
+    private static string ServerVersionText(string version) => version.Split('+')[0];
+
+    private static string BuildLabel(string version) => version.Split('+').ElementAtOrDefault(1) switch
+    {
+        null or "" => "Release",
+        "local" => "Run from source",
+        "modified" => "Release with uncommitted changes",
+        var other => other,
+    };
+
+    private AboutInfo? _about;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _about = await Api.GetAboutAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            _error = ex.Message;
+        }
+        _loading = false;
+    }
+
+    private static string Uptime(DateTimeOffset since)
+    {
+        var up = DateTimeOffset.UtcNow - since;
+        if (up < TimeSpan.FromMinutes(1)) return "just started";
+        if (up < TimeSpan.FromHours(1)) return $"up {(int)up.TotalMinutes} min";
+        if (up < TimeSpan.FromDays(1)) return $"up {(int)up.TotalHours} h {up.Minutes} min";
+        var days = (int)up.TotalDays;
+        return $"up {days} {(days == 1 ? "day" : "days")} {up.Hours} h";
+    }
+}

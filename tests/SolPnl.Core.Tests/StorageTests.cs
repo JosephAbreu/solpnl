@@ -505,6 +505,19 @@ public abstract class StorageTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DatabaseDescription_NamesTheServerAndVersion()
+    {
+        var description = await DatabaseDescription.DescribeAsync(_factory, _settings, CancellationToken.None);
+        var expectedPrefix = _settings.Driver switch
+        {
+            DbDriver.Sqlite => "SQLite ",
+            DbDriver.SqlServer => "SQL Server 2022 (16.",
+            _ => DriverName == "mariadb" ? "MariaDB 11." : "MySQL 8.",
+        };
+        Assert.StartsWith(expectedPrefix, description);
+    }
+
+    [Fact]
     public async Task SaveAndQuery_RoundTrips()
     {
         await Migrations().MigrateAsync();

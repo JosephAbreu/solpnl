@@ -38,3 +38,18 @@ public class DbSettingsTests
     public void ServerDriver_WithoutConnectionString_Throws() =>
         Assert.Throws<InvalidOperationException>(() => From(("Db:DriverName", "mysql")));
 }
+
+public class DatabaseDescriptionTests
+{
+    [Theory]
+    [InlineData(DbDriver.Sqlite, "3.46.1", "SQLite 3.46.1")]
+    [InlineData(DbDriver.MySql, "8.4.3", "MySQL 8.4.3")]
+    [InlineData(DbDriver.MySql, "11.4.5-MariaDB-ubu2404", "MariaDB 11.4.5")]
+    [InlineData(DbDriver.MySql, "5.5.5-10.11.6-MariaDB-0+deb12u1", "MariaDB 10.11.6")]
+    [InlineData(DbDriver.SqlServer, "16.00.4135", "SQL Server 2022 (16.0.4135)")]
+    [InlineData(DbDriver.SqlServer, "99.00.1", "SQL Server 99.0.1")]
+    [InlineData(DbDriver.MySql, null, "MySQL / MariaDB")]
+    [InlineData(DbDriver.Sqlite, "", "SQLite")]
+    public void Describe_FormatsServerVersion(DbDriver driver, string? serverVersion, string expected) =>
+        Assert.Equal(expected, DatabaseDescription.Describe(driver, serverVersion));
+}

@@ -51,6 +51,8 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
   notifications (with a test button), and a card for each enabled plugin that has its own settings (e.g. Email).
 - **Plugins** – installed plugins with their device counts. **Disable** pauses all of a plugin's devices (settings and
   history are kept); **Enable** resumes them.
+- **About** (ⓘ in the top bar) – web app and server versions (with a reload prompt when the browser has an older web
+  app cached), the commit a release was built from, database, runtime and uptime, project links and data credits.
 
 Charts are dependency-free SVG with a hover/keyboard crosshair tooltip, a table view, and light/dark themes. All assets
 are bundled locally (no CDNs).
@@ -127,6 +129,7 @@ the database and never returned by the API: the card shows them as "Saved", with
 ## API
 | Endpoint | Description |
 |---|---|
+| `GET /api/v1/about` | Server version, commit, runtime, OS, database and start time |
 | `GET /api/v1/devices` | Devices with stored data |
 | `DELETE /api/v1/devices/{deviceId}` | Delete the history of a device that is no longer configured |
 | `GET /api/v1/config/devices` | Configured devices (secret settings omitted) |
@@ -180,7 +183,8 @@ service without a password. SolPnl then starts in setup mode; open `http://serve
 code with `ssh administrator@server.local "journalctl -u solpnl -n 50 --no-pager | grep -o 'setup code [A-Z0-9-]*'"`.
 
 **Updates:** `./deploy/deploy.ps1` (builds, uploads a new release, switches to it, restarts, checks health; keeps the
-last 3 releases). **Roll back:** `./deploy/deploy.ps1 -Rollback`. Options: `-Target user@host`, `-Port`.
+last 3 releases). Each release is versioned `{year}.{month}.{commit count}` and records its commit (marked
+`+modified` if built with uncommitted changes); the About page shows both. **Roll back:** `./deploy/deploy.ps1 -Rollback`. Options: `-Target user@host`, `-Port`.
 
 **On the Pi:** `systemctl status solpnl`, `journalctl -u solpnl -f`. The port is set in
 `/etc/systemd/system/solpnl.service` (`ASPNETCORE_URLS`, default 5255).
