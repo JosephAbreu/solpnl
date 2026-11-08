@@ -20,7 +20,7 @@
       version. Set explicitly (not from $(Version)) so SolPnl's own release version doesn't change it.
     -->
     <AssemblyVersion>$([System.Version]::Parse('$(SolPnlContractsVersion)').ToString(2)).0.0</AssemblyVersion>
-    <Authors>Joseph Abreu</Authors>
+    <Authors>Joseph Abreu LLC</Authors>
     <Description>Plugin interfaces and models for SolPnl, a self-hosted solar monitoring app. Reference this package to build a SolPnl plugin: a device type (inverters, meters, sensors), a weather or alert service, or a notification channel.</Description>
     <PackageTags>solpnl;solar;inverter;plugin;home-automation</PackageTags>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
