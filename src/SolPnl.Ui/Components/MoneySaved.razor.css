@@ -1,0 +1,62 @@
+.money {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+h2 {
+    margin: 0;
+    font-size: var(--fontSizeBase400);
+    font-weight: var(--fontWeightSemibold);
+    color: var(--colorNeutralForeground1);
+}
+
+.muted {
+    font-size: var(--fontSizeBase200);
+    color: var(--colorNeutralForeground3);
+}
+
+.setup {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: var(--colorNeutralForeground2);
+}
+
+.payback {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 640px;
+}
+
+.payback-label {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: var(--fontSizeBase300);
+    color: var(--colorNeutralForeground1);
+}
+
+/* Single-value meter: brand fill on a neutral track, rounded ends. */
+.bar {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--colorNeutralBackground5, var(--colorNeutralStroke2));
+    overflow: hidden;
+}
+
+.fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--colorBrandBackground);
+}

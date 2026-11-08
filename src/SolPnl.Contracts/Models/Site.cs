@@ -97,7 +97,8 @@ public sealed record DaySummary(
     double? ActualLowC,
     double? SolarKwh,
     double? LoadKwh,
-    double? GridKwh);
+    double? GridKwh,
+    double? Saved = null);
 
 public static class InsightKinds
 {

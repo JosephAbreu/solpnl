@@ -1,0 +1,169 @@
+@* Electricity price (with history, so past days keep the price they had), currency and system cost. *@
+@inject SolPnlApi Api
+
+<section class="panel card" id="savings" aria-labelledby="savings-heading">
+    <h2 id="savings-heading">Electricity price</h2>
+    <p class="hint">SolPnl works out what solar saves you: every kWh of solar used at home is a kWh you didn't buy. Use the
+        price per kWh on your bill: the energy charge plus any per-kWh fuel or rider charges. Leave out fixed monthly charges,
+        since solar doesn't change them.</p>
+
+    @if (_settings is { } s)
+    {
+        @if (s.RateList.Count > 0)
+        {
+            <ul class="rates" aria-label="Prices">
+                @foreach (var rate in s.RateList.Reverse())
+                {
+                    <li>
+                        <span>@(rate.From is { } from ? $"From {from.ToString("MMM d, yyyy", CultureInfo.CurrentCulture)}" : "From the start"):</span>
+                        <strong>@Price(rate.PricePerKwh)</strong>
+                        @if (rate.SummerPricePerKwh is { } summer)
+                        {
+                            <span class="muted">(June–September: @Price(summer))</span>
+                        }
+                        <button type="button" class="remove" aria-label="Remove this price" title="Remove this price" disabled="@_busy"
+                                @onclick="() => RemoveAsync(rate)">
+                            <FluentIcon Value="@(new Icons.Regular.Size16.Dismiss())" Color="Color.Custom" CustomColor="currentColor" />
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+
+        <form class="fields" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+            <div class="row">
+                <FluentTextInput @bind-Value="_price" Label="@($"Price per kWh ({s.Currency})")" Placeholder="0.15" InputMode="TextInputMode.Decimal" Width="100%" />
+                <FluentTextInput @bind-Value="_summer" Label="Summer price (June–September)" Placeholder="Same" InputMode="TextInputMode.Decimal" Width="100%" />
+                @if (s.RateList.Count > 0)
+                {
+                    <div class="date-field">
+                        <label for="rate-from">Applies from</label>
+                        <input id="rate-from" type="date" @bind="_from" />
+                    </div>
+                }
+            </div>
+            <div class="row">
+                <FluentTextInput @bind-Value="_currency" Label="Currency symbol" Placeholder="$" Width="100%" MaxLength="5" />
+                <FluentTextInput @bind-Value="_cost" Label="@($"System cost ({s.Currency}, optional)")" Placeholder="For payback progress" InputMode="TextInputMode.Decimal" Width="100%" />
+            </div>
+            @if (s.RateList.Count > 0)
+            {
+                <p class="hint">A price change applies from the date you choose; earlier days keep the price they had. To fix a
+                    price instead, choose the same date as the price you're correcting.</p>
+            }
+            else
+            {
+                <p class="hint">The first price applies to all of your history. Add another later when your rate changes.</p>
+            }
+            @if (_message is { } message)
+            {
+                <FluentMessageBar Intent="@(_ok ? MessageBarIntent.Success : MessageBarIntent.Error)">@message</FluentMessageBar>
+            }
+            <div class="actions">
+                <FluentButton Type="ButtonType.Submit" Appearance="ButtonAppearance.Primary" Loading="_busy" Disabled="_busy">Save</FluentButton>
+            </div>
+        </form>
+    }
+</section>
+
+@code {
+    private SavingsSettings? _settings;
+    private string? _price, _summer, _currency, _cost, _message;
+    private DateOnly? _from;
+    private bool _ok, _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Fill(await Api.GetSavingsSettingsAsync());
+        }
+        catch (HttpRequestException ex)
+        {
+            _message = $"Can't reach SolPnl: {ex.Message}";
+        }
+    }
+
+    private void Fill(SavingsSettings settings)
+    {
+        _settings = settings;
+        _currency = settings.Currency;
+        _cost = settings.SystemCost?.ToString("0.##", CultureInfo.CurrentCulture);
+        var current = settings.RateList.LastOrDefault();
+        _price = current?.PricePerKwh.ToString("0.#####", CultureInfo.CurrentCulture);
+        _summer = current?.SummerPricePerKwh?.ToString("0.#####", CultureInfo.CurrentCulture);
+        _from = DateOnly.FromDateTime(DateTime.Today);
+    }
+
+    private string Price(double price) => $"{_settings?.Currency}{price.ToString("0.00###", CultureInfo.CurrentCulture)}/kWh";
+
+    private async Task SaveAsync()
+    {
+        if (_settings is not { } s) return;
+        if (!TryNumber(_price, out var price) || price is null)
+        {
+            Fail("Enter the price per kWh as a number, e.g. 0.15.");
+            return;
+        }
+        if (!TryNumber(_summer, out var summer) || !TryNumber(_cost, out var cost))
+        {
+            Fail("Summer price and system cost must be numbers (or empty).");
+            return;
+        }
+
+        var rates = s.RateList.ToList();
+        var from = rates.Count == 0 ? null : _from;
+        var current = rates.LastOrDefault();
+        // Saving the form unchanged (e.g. only the system cost changed) mustn't add a new price period.
+        if (current is null || current.PricePerKwh != price || current.SummerPricePerKwh != summer)
+            rates.Add(new ElectricityRate(from, price.Value, summer));
+        await SaveAsync(s with { Currency = _currency ?? "$", Rates = rates, SystemCost = cost }, "Saved.");
+    }
+
+    private async Task RemoveAsync(ElectricityRate rate)
+    {
+        if (_settings is not { } s) return;
+        var rates = s.RateList.Where(r => r != rate).ToList();
+        // The earliest remaining price covers the start of history again.
+        if (rates.Count > 0 && rates[0].From is not null) rates[0] = rates[0] with { From = null };
+        await SaveAsync(s with { Rates = rates }, "Price removed.");
+    }
+
+    private async Task SaveAsync(SavingsSettings settings, string done)
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            var result = await Api.SaveSavingsSettingsAsync(settings);
+            _ok = result.Ok;
+            _message = result.Ok ? done : result.Error;
+            if (result.Value is { } saved) Fill(saved);
+        }
+        catch (HttpRequestException ex)
+        {
+            Fail($"Can't reach SolPnl: {ex.Message}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Fail(string message)
+    {
+        _ok = false;
+        _message = message;
+    }
+
+    private static bool TryNumber(string? text, out double? value)
+    {
+        value = null;
+        if (string.IsNullOrWhiteSpace(text)) return true;
+        var cleaned = text.Trim().TrimStart('$', '€', '£');
+        if (!double.TryParse(cleaned, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out var v)
+            && !double.TryParse(cleaned, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out v)) return false;
+        value = v;
+        return true;
+    }
+}
