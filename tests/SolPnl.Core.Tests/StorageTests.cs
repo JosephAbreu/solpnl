@@ -723,6 +723,67 @@ public abstract class StorageTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Reports_TotalByYearMonthAndDay_AndCompareWithAYearEarlier()
+    {
+        await Migrations().MigrateAsync();
+        var settings = new SiteSettingsStore(_factory);
+        await settings.SetLocationAsync(new SiteLocation("Home", 33.75, -85.69, null, "America/Chicago"));
+        var days = new DaySummaryStore(_factory, _time);
+        var savings = new SavingsService(_factory, days, settings, _time);
+        var reports = new ReportService(days, savings, settings, _time);
+        _time.Now = new DateTimeOffset(2026, 11, 8, 18, 0, 0, TimeSpan.Zero); // Nov 8 local
+
+        async Task Day(int y, int m, int d, double solar, double load, double grid) =>
+            await days.UpdateAsync(new DateOnly(y, m, d), r => { r.SolarWh = solar * 1000; r.LoadWh = load * 1000; r.GridWh = grid * 1000; });
+        await Day(2025, 11, 3, 10, 40, 30);
+        await Day(2025, 11, 20, 50, 50, 0);   // after Nov 8: not in "same period last year"
+        await Day(2026, 10, 15, 30, 40, 10);
+        await Day(2026, 11, 2, 20, 40, 20);
+        await Day(2026, 11, 8, 40, 40, 0);
+        await days.UpdateAsync(new DateOnly(2026, 11, 5), r => r.ForecastHigh = 20); // weather only: not counted
+
+        // Year view: 12 months, the same months a year earlier, the same period last year.
+        var year = await reports.GetAsync(2026, null);
+        Assert.Equal(ReportScopes.Year, year.Scope);
+        Assert.Null(year.Currency);
+        Assert.Equal(12, year.Periods.Count);
+        Assert.Equal(3, year.Total.Days);
+        Assert.Equal(90, year.Total.SolarKwh);
+        Assert.Equal(120, year.Total.LoadKwh);
+        Assert.Equal(75, year.Total.SelfPoweredPercent);
+        Assert.Equal(60, year.Periods[10].SolarKwh);
+        Assert.Equal(2, year.Periods[10].Days);
+        Assert.Equal(0, year.Periods[0].Days);
+        Assert.Null(year.Periods[0].SolarKwh);
+        Assert.Equal(60, year.PreviousPeriods[10]!.SolarKwh); // all of Nov 2025
+        Assert.Null(year.PreviousPeriods[9]);
+        Assert.Equal(10, year.Previous!.SolarKwh);            // 2025 up to Nov 8 only
+        Assert.Equal(new DateOnly(2026, 11, 8), year.BestDay!.Date);
+        Assert.Equal([2025, 2026], year.Years);
+
+        // Month view: a period per day; with a price, money saved too.
+        await savings.SaveSettingsAsync(new SavingsSettings("$", [new ElectricityRate(null, 0.10)]));
+        var month = await reports.GetAsync(2026, 11);
+        Assert.Equal(30, month.Periods.Count);
+        Assert.Equal("$", month.Currency);
+        Assert.Equal(6.00, month.Total.Saved);
+        Assert.Equal(2.00, month.Periods[1].Saved);
+        Assert.Equal(1.00, month.Previous!.Saved);
+        Assert.Empty(month.PreviousPeriods);
+
+        // All years: one period per year, no comparison.
+        var all = await reports.GetAsync(null, null);
+        Assert.Equal(2, all.Periods.Count);
+        Assert.Equal(60, all.Periods[0].SolarKwh);
+        Assert.Equal(150, all.Total.SolarKwh);
+        Assert.Null(all.Previous);
+        Assert.Equal(new DateOnly(2025, 11, 3), all.Total.Start);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => reports.GetAsync(null, 11));
+        await Assert.ThrowsAsync<ArgumentException>(() => reports.GetAsync(2026, 13));
+    }
+
+    [Fact]
     public async Task Savings_SummarizeDays_WithRateHistory_AndPayback()
     {
         await Migrations().MigrateAsync();

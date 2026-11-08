@@ -45,6 +45,8 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
 - **Device page** – Essentials, current values and charts (Overview tab), and every reported metric with a chart
   for any of them (Metrics tab). **Remove** stops polling and forgets the settings; history is kept unless you choose
   to delete it too. Devices with history only can have it deleted.
+- **Reports** – solar, home use, energy from the grid, the share of home use solar covered, and money saved, by
+  year, month or day, each compared with a year earlier; click a year or month to drill in.
 - **Alerts** – what's going on now (offline devices, grid outages, active weather alerts, solar warnings), grid power
   over the last 30 days (outages and voltage problems), and the history of every
   alert with its delivery result (sent, failed and retrying, waiting for a channel, or not sent); filter by category.
@@ -185,6 +187,7 @@ the database and never returned by the API: the card shows them as "Saved", with
 | `GET /api/v1/grid/events[?days=30]` | Grid outages and low/high voltage, newest first, with outage totals |
 | `GET /api/v1/site/savings` | Money saved: today, month, year, total, payback, per month |
 | `GET/PUT /api/v1/settings/savings` | `{ currency, rates: [{ from, pricePerKwh, summerPricePerKwh }], systemCost }` |
+| `GET /api/v1/reports/energy[?year=2026[&month=11]]` | Energy and money by year, by month of a year, or by day of a month, with a year earlier |
 | `GET /api/v1/backups` | Backup status, schedule and the backups on the server |
 | `PUT /api/v1/backups/settings` | `{ enabled, time: "HH:mm", keep, folder }` (folder null = default) |
 | `POST /api/v1/backups` | Start a backup (202; poll `GET /api/v1/backups`) |

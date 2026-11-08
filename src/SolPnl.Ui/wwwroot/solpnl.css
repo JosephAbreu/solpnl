@@ -6,6 +6,7 @@
     --series-1: #2a78d6;  /* blue */
     --series-2: #eb6834;  /* orange */
     --series-3: #1baf7a;  /* aqua: below 3:1 on light, so charts always offer a table view */
+    --series-prior: #949494; /* the same period a year earlier: neutral, so the current period leads */
     --viz-surface: var(--colorNeutralBackground1);
     --viz-grid: #e6e6e6;
     --viz-axis: #c3c2b7;
@@ -18,6 +19,7 @@ body[data-theme="dark"] .viz-root {
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-3: #199e70;
+    --series-prior: #7a7a7a;
     --viz-grid: #3a3a3a;
     --viz-axis: #4d4d4d;
     --viz-muted: #a0a0a0;

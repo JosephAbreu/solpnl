@@ -95,6 +95,19 @@ public static class SiteEndpoints
                 return Results.BadRequest(new ApiError(ex.Message));
             }
         }).WithName("SaveSavingsSettings");
+
+        // Energy and money by year (no year), by month (year) or by day (year and month), with a year earlier.
+        api.MapGet("/reports/energy", async (int? year, int? month, ReportService reports, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await reports.GetAsync(year, month, ct));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new ApiError(ex.Message));
+            }
+        }).WithName("GetEnergyReport");
     }
 
     private static bool TryDate(string? value, DateOnly fallback, out DateOnly date)
