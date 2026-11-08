@@ -19,13 +19,19 @@ dl {
     font-size: var(--fontSizeBase300);
 }
 
+/* Label: bold with a trailing colon, so it reads clearly apart from its value. */
 dt {
-    color: var(--colorNeutralForeground3);
-    font-weight: var(--fontWeightRegular);
+    color: var(--colorNeutralForeground1);
+    font-weight: var(--fontWeightSemibold);
 }
+
+    dt::after {
+        content: ":";
+    }
 
 dd {
     margin: 0;
     color: var(--colorNeutralForeground1);
+    font-weight: var(--fontWeightRegular);
     overflow-wrap: anywhere;
 }
