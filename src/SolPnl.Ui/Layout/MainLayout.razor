@@ -18,6 +18,10 @@
 
         <FluentSpacer />
 
+        <FluentButton Appearance="ButtonAppearance.Transparent" IconOnly="true" Title="About SolPnl"
+                      aria-label="About SolPnl" OnClick="@(() => Nav.NavigateTo("about"))"
+                      IconStart="@(new Icons.Regular.Size20.Info().WithColor("#ffffff"))" />
+
         <FluentButton Appearance="ButtonAppearance.Transparent" IconOnly="true" Title="Switch light/dark theme"
                       aria-label="Switch light/dark theme" OnClick="ToggleThemeAsync"
                       IconStart="@(new Icons.Regular.Size20.DarkTheme().WithColor("#ffffff"))" />
