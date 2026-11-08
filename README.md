@@ -42,8 +42,8 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
   and payback progress), plus solar/load and per-string charts.
 - **Devices** – every device with status and last reading; filterable (also from the header search).
   **Add device** picks a device type and builds its settings form from the plugin, with **Test connection**.
-- **Device page** – **Download CSV** saves every metric for the selected time range. Essentials (including any
-  fault the inverter reports right now), current values and charts (Overview tab), and every reported metric with a chart
+- **Device page** – **Download CSV** saves every metric for the selected time range. Essentials (including the
+  inverter's operating state, e.g. "Mains powered", and any fault it reports right now), current values and charts (Overview tab), and every reported metric with a chart
   for any of them (Metrics tab). **Remove** stops polling and forgets the settings; history is kept unless you choose
   to delete it too. Devices with history only can have it deleted.
 - **Reports** – solar, home use, energy from the grid, the share of home use solar covered, and money saved, by
@@ -220,6 +220,7 @@ the database and never returned by the API: the card shows them as "Saved", with
 | `GET /api/v1/site/overview` | Sun times, weather now, today's summary, tomorrow's forecast, insights, alerts |
 | `GET /api/v1/site/days[?from=&to=]` | Daily summaries (local dates, default last 30 days) |
 | `GET /api/v1/devices/{deviceId}/faults` | Faults the device reports right now: `[{ code, description }]` |
+| `GET /api/v1/devices/{deviceId}/state` | Operating state now: `{ value, description }` (204 if the device reports none) |
 | `GET /api/v1/readings/latest[?device=]` | Latest value of every metric |
 | `GET /api/v1/readings/history?device=&metric=[&from=&to=&resolution=]` | Values over a range (default: last 24 h) |
 

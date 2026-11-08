@@ -64,6 +64,9 @@ public sealed record NotificationPreferences(
 /// <summary>A fault a device reports right now: its code and, if the plugin knows it, what it means.</summary>
 public sealed record DeviceFault(int Code, string? Description);
 
+/// <summary>The operating state a device reports right now: its value and, if the plugin knows it, what it means.</summary>
+public sealed record DeviceOperatingState(int Value, string? Description);
+
 public sealed record NotificationTestResult(bool Ok, IReadOnlyList<PluginActionResult> Results);
 
 public sealed record SetPluginEnabledRequest(bool Enabled);
