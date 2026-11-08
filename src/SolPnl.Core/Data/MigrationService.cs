@@ -30,6 +30,14 @@ public sealed class MigrationService(IDbContextFactory<SolPnlDb> dbFactory, DbSe
 
         try
         {
+            // Write-ahead logging lets reads (a backup, a long history query) run alongside polling's writes instead
+            // of blocking them. It's a property of the database file, so this only changes something once.
+            if (settings.Driver == DbDriver.Sqlite)
+            {
+                await using var wal = Command(connection, "pragma journal_mode=wal;");
+                await wal.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await EnsureScriptTableAsync(connection, cancellationToken);
             var scripts = GetScripts();
 

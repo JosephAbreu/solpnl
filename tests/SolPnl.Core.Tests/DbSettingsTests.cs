@@ -53,3 +53,13 @@ public class DatabaseDescriptionTests
     public void Describe_FormatsServerVersion(DbDriver driver, string? serverVersion, string expected) =>
         Assert.Equal(expected, DatabaseDescription.Describe(driver, serverVersion));
 }
+
+public class MySqlUnicodeTests
+{
+    [Fact]
+    public void WithUnicode_AddsUtf8mb4_UnlessACharsetIsGiven()
+    {
+        Assert.Contains("characterset=utf8mb4", DbSettings.WithUnicode("server=db;database=solpnl;user id=u").ToLowerInvariant());
+        Assert.Contains("characterset=latin1", DbSettings.WithUnicode("server=db;database=solpnl;charset=latin1").ToLowerInvariant());
+    }
+}
