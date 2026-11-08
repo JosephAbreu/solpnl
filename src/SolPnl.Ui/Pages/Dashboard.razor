@@ -68,7 +68,7 @@
         <div class="card-grid">
             <MetricChartCard Title="Solar, load and grid" DeviceId="@_device.DeviceId" Range="_range" RefreshKey="_chartRefresh"
                              Series="@PowerSeries" />
-            <MetricChartCard Title="Solar by PV string" DeviceId="@_device.DeviceId" Range="_range" RefreshKey="_chartRefresh"
+            <MetricChartCard Title="@($"Solar by PV {PvInputName}")" DeviceId="@_device.DeviceId" Range="_range" RefreshKey="_chartRefresh"
                              Series="@StringSeries" />
         </div>
 
@@ -92,10 +92,13 @@
         new(Metrics.GridPower, "Grid", SeriesColors.Slot3),
     ];
 
-    private static readonly IReadOnlyList<SeriesSpec> StringSeries =
+    /// <summary>What the device's vendor calls a PV input: "string", or e.g. "line" for SRNE.</summary>
+    private string PvInputName => _device?.Plugin?.PvInputName ?? "string";
+
+    private IReadOnlyList<SeriesSpec> StringSeries =>
     [
-        new(Metrics.ForString(Metrics.PvPower, 1), "String 1", SeriesColors.Slot1),
-        new(Metrics.ForString(Metrics.PvPower, 2), "String 2", SeriesColors.Slot2),
+        new(Metrics.ForString(Metrics.PvPower, 1), MetricFormat.PvInput(PvInputName, 1), SeriesColors.Slot1),
+        new(Metrics.ForString(Metrics.PvPower, 2), MetricFormat.PvInput(PvInputName, 2), SeriesColors.Slot2),
     ];
 
     private DeviceRow? _device;
@@ -215,7 +218,7 @@
         var parts = Enumerable.Range(1, 4)
             .Select(i => (Number: i, Metric: Metrics.ForString(Metrics.PvPower, i)))
             .Where(s => Has(s.Metric))
-            .Select(s => $"String {s.Number} {Value(s.Metric)}");
+            .Select(s => $"{MetricFormat.PvInput(PvInputName, s.Number)} {Value(s.Metric)}");
         return string.Join(" · ", parts);
     }
 

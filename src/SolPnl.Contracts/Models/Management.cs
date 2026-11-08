@@ -21,7 +21,8 @@ public sealed record PluginInfo(
     bool Enabled,
     int DeviceCount,
     IReadOnlyList<SettingField> Settings,
-    bool HasSettings = false);
+    bool HasSettings = false,
+    string PvInputName = "string");
 
 /// <summary>
 /// A plugin's own settings for the Settings page. Secret values are never returned: <see cref="SecretsSet"/> lists

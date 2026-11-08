@@ -85,8 +85,11 @@ public static class MetricFormat
     /// <summary>Temperature in °C formatted in the display unit, e.g. "72 °F".</summary>
     public static string Temperature(double? celsius) => celsius is { } c ? Format(c, "°C") : "–";
 
-    /// <summary>"pv.power.1" => "Solar power · string 1", "load.power.l2" => "Load · L2".</summary>
-    public static string DisplayName(string metric)
+    /// <summary>
+    /// "pv.power.1" => "Solar power · string 1", "load.power.l2" => "Load · L2". <paramref name="pvInput"/> is what the
+    /// device's vendor calls a PV input (<see cref="PluginInfo.PvInputName"/>, e.g. "line").
+    /// </summary>
+    public static string DisplayName(string metric, string pvInput = "string")
     {
         if (Names.TryGetValue(metric, out var name)) return name;
 
@@ -100,7 +103,7 @@ public static class MetricFormat
                 {
                     "Inverter temperature" => $"{baseName} · sensor {n}",
                     "Fault code" => $"{baseName} · slot {n}",
-                    _ => $"{baseName} · string {n}",
+                    _ => $"{baseName} · {pvInput} {n}",
                 };
         }
         return metric;
@@ -143,6 +146,10 @@ public static class MetricFormat
         }
         return 6;
     }
+
+    /// <summary>"Line 1" for <paramref name="pvInput"/> "line".</summary>
+    public static string PvInput(string pvInput, int number) =>
+        $"{char.ToUpperInvariant(pvInput[0])}{pvInput[1..]} {number}";
 
     /// <summary>"Mains powered (4)", or "State 12" when the plugin doesn't know the value.</summary>
     public static string State(DeviceOperatingState state) =>
