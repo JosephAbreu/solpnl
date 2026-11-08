@@ -40,7 +40,13 @@ public sealed class DeviceRegistry : IAsyncDisposable
         _dbFactory = dbFactory;
         _store = store;
         _logger = logger;
-        _types = types.ToDictionary(t => t.Id, StringComparer.Ordinal);
+        _types = new Dictionary<string, IDevicePluginType>(StringComparer.Ordinal);
+        foreach (var type in types)
+        {
+            // Two packages can't both provide a plugin id: the first one wins.
+            if (!_types.TryAdd(type.Id, type))
+                logger.LogWarning("Device plugin '{Id}' is provided by more than one plugin package; using the first.", type.Id);
+        }
     }
 
     /// <summary>Devices being polled right now (configured, with an installed and enabled plugin).</summary>

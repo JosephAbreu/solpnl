@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SolPnl.Contracts.Models;
 using SolPnl.Contracts.Plugins;
+using SolPnl.Core.Plugins;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
 
@@ -16,16 +17,18 @@ public sealed class PluginCatalog(
     DeviceRegistry registry,
     IEnumerable<IWeatherProvider> weatherProviders,
     IEnumerable<IWeatherAlertProvider> alertProviders,
-    IEnumerable<INotificationPlugin> notificationPlugins)
+    IEnumerable<INotificationPlugin> notificationPlugins,
+    PluginPackages? packages = null)
 {
-    private readonly IReadOnlyList<IWeatherProvider> _weather = weatherProviders.ToList();
-    private readonly IReadOnlyList<IWeatherAlertProvider> _alerts = alertProviders.ToList();
-    private readonly IReadOnlyList<INotificationPlugin> _notifiers = notificationPlugins.ToList();
+    private readonly IReadOnlyList<IWeatherProvider> _weather = weatherProviders.DistinctBy(p => p.Id).ToList(); // one per id, if two packages provide the same one
+    private readonly IReadOnlyList<IWeatherAlertProvider> _alerts = alertProviders.DistinctBy(p => p.Id).ToList(); // one per id, if two packages provide the same one
+    private readonly IReadOnlyList<INotificationPlugin> _notifiers = notificationPlugins.DistinctBy(p => p.Id).ToList(); // one per id, if two packages provide the same one
 
     /// <summary>Raised after a plugin is enabled or disabled.</summary>
     public event Action? Changed;
 
-    private IEnumerable<IPlugin> AllPlugins =>
+    /// <summary>Every running plugin.</summary>
+    public IEnumerable<IPlugin> AllPlugins =>
         registry.PluginTypes.Cast<IPlugin>().Concat(_weather).Concat(_alerts).Concat(_notifiers);
 
     /// <summary>
@@ -43,7 +46,8 @@ public sealed class PluginCatalog(
             var secrets = fields.Where(f => f.Kind == SettingKind.Secret).Select(f => f.Key).ToHashSet(StringComparer.Ordinal);
             if (secrets.Count > 0) result[plugin.Id] = secrets;
         }
-        return result;
+        // Plus those of plugins that have since been removed: their saved passwords are still in the database.
+        return packages?.RememberSecretKeys(result) ?? result;
     }
 
     public async Task<IReadOnlyList<PluginInfo>> GetPluginsAsync(CancellationToken ct = default)

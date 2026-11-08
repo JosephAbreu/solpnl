@@ -1,0 +1,6 @@
+{
+  "id": "solpnl.simulator",
+  "name": "Simulated inverter",
+  "assembly": "SolPnl.Plugin.Simulator.dll",
+  "developmentOnly": true
+}

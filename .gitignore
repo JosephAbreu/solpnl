@@ -488,3 +488,5 @@ appsettings.Local.json
 *.db
 *.db-shm
 *.db-wal
+# Plugins added on this machine, when the data directory is the content root (dev)
+src/SolPnl.Api/plugins/

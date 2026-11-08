@@ -1,0 +1,5 @@
+{
+  "id": "solpnl.open-meteo",
+  "name": "Open-Meteo weather",
+  "assembly": "SolPnl.Plugin.OpenMeteo.dll"
+}
