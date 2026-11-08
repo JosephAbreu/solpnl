@@ -162,6 +162,24 @@ public class SrneRegisterMapTests
     }
 
     [Fact]
+    public void Decode_FaultCodes_FromTheFourFaultSlots()
+    {
+        var none = DecodeCaptured();
+        for (var i = 1; i <= 4; i++)
+            Assert.Equal(0, none[Metrics.ForString(Metrics.FaultCode, i)].Value);
+
+        var registers = Captured();
+        registers[0x0204] = 9;
+        registers[0x0205] = 20;
+        var faults = DecodeCaptured(registers);
+        Assert.Equal(9, faults[Metrics.ForString(Metrics.FaultCode, 1)].Value);
+        Assert.Equal(20, faults[Metrics.ForString(Metrics.FaultCode, 2)].Value);
+        Assert.Equal(0, faults[Metrics.ForString(Metrics.FaultCode, 3)].Value);
+        Assert.Equal("PV voltage too high", SrneFaults.Describe(9));
+        Assert.Null(SrneFaults.Describe(999));
+    }
+
+    [Fact]
     public void DecodeClock_ReturnsInverterLocalTime()
     {
         Assert.Equal(new DateTime(2026, 11, 7, 14, 27, 4), SrneRegisterMap.DecodeClock(Captured()));

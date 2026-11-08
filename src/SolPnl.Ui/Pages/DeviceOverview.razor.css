@@ -36,3 +36,16 @@
     justify-content: flex-end;
     gap: 8px;
 }
+
+.faults {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.fault {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: var(--fontWeightSemibold);
+}

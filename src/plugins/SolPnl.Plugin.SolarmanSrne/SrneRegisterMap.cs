@@ -46,6 +46,12 @@ public static class SrneRegisterMap
         new(0x0110, ForString(PvCurrent, 2), 0.1, "A"),
         new(0x0111, ForString(PvPower, 2), 1, "W"),
 
+        // Current fault codes 1-4 (0 = none), after the fault bit field 0x0200..0x0203. All 0 on the live unit with
+        // no fault; non-zero codes follow SRNE's fault table (see SrneFaults) and haven't been seen live yet.
+        new(0x0204, ForString(FaultCode, 1), 1, ""),
+        new(0x0205, ForString(FaultCode, 2), 1, ""),
+        new(0x0206, ForString(FaultCode, 3), 1, ""),
+        new(0x0207, ForString(FaultCode, 4), 1, ""),
         new(0x0210, StateMetric, 1, ""),            // operating state; meaning of values not yet mapped
 
         new(0x0212, DcBusVoltageMetric, 0.1, "V"),         // internal DC bus; 0x0228 + 0x0229 are its two halves

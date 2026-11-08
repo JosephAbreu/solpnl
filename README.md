@@ -42,7 +42,7 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
   and payback progress), plus solar/load and per-string charts.
 - **Devices** – every device with status and last reading; filterable (also from the header search).
   **Add device** picks a device type and builds its settings form from the plugin, with **Test connection**.
-- **Device page** – Essentials, current values and charts (Overview tab), and every reported metric with a chart
+- **Device page** – Essentials (including any fault the inverter reports right now), current values and charts (Overview tab), and every reported metric with a chart
   for any of them (Metrics tab). **Remove** stops polling and forgets the settings; history is kept unless you choose
   to delete it too. Devices with history only can have it deleted.
 - **Reports** – solar, home use, energy from the grid, the share of home use solar covered, and money saved, by
@@ -127,6 +127,7 @@ Enable and set up a notification plugin on **Settings** (the **Email (SMTP)** ca
 from and to; **Send test email** checks it). SolPnl then sends, once per event:
 - severe weather alerts for your location (NWS),
 - a device that stops reporting for N minutes (default 10), and again when it's back,
+- a fault the inverter reports (its code, in words where SolPnl knows it), and again when it clears,
 - solar output below the forecast on two sunny days in a row,
 - the grid going out (and coming back, with how long it was out),
 - grid voltage outside the normal range for a minute (automatic: 106–127 V per leg for 120 V service, 207–253 V for
@@ -214,6 +215,7 @@ the database and never returned by the API: the card shows them as "Saved", with
 | `PUT /api/v1/settings/units` | `{ temperatureUnit: "F" \| "C" }` |
 | `GET /api/v1/site/overview` | Sun times, weather now, today's summary, tomorrow's forecast, insights, alerts |
 | `GET /api/v1/site/days[?from=&to=]` | Daily summaries (local dates, default last 30 days) |
+| `GET /api/v1/devices/{deviceId}/faults` | Faults the device reports right now: `[{ code, description }]` |
 | `GET /api/v1/readings/latest[?device=]` | Latest value of every metric |
 | `GET /api/v1/readings/history?device=&metric=[&from=&to=&resolution=]` | Values over a range (default: last 24 h) |
 
