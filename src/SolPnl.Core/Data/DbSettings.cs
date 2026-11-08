@@ -59,12 +59,23 @@ public sealed record DbSettings(DbDriver Driver, string ConnectionString)
         return new DbSettings(driver, connectionString);
     }
 
+    /// <summary>
+    /// MySQL/MariaDB connections talk utf8mb4 unless the connection string says otherwise. Without it the connector
+    /// uses the server's default character set, which on some MariaDB servers is still latin1 ("✓" arrives as "?").
+    /// </summary>
+    public static string WithUnicode(string mySqlConnectionString)
+    {
+        var builder = new MySql.Data.MySqlClient.MySqlConnectionStringBuilder(mySqlConnectionString);
+        if (string.IsNullOrEmpty(builder.CharacterSet)) builder.CharacterSet = "utf8mb4";
+        return builder.ConnectionString;
+    }
+
     public void Configure(DbContextOptionsBuilder builder)
     {
         switch (Driver)
         {
             case DbDriver.Sqlite: builder.UseSqlite(ConnectionString); break;
-            case DbDriver.MySql: builder.UseMySQL(ConnectionString); break;
+            case DbDriver.MySql: builder.UseMySQL(WithUnicode(ConnectionString)); break;
             case DbDriver.SqlServer: builder.UseSqlServer(ConnectionString); break;
         }
     }

@@ -63,7 +63,7 @@
         @if (_loaded && _history.Count == 0)
         {
             <p class="quiet">No alerts yet. Alerts appear here when devices go offline, weather alerts are issued for your location,
-                or solar output falls below the forecast.</p>
+                solar output falls below the forecast, or a scheduled backup fails.</p>
         }
         else
         {
@@ -122,6 +122,7 @@
         (AlertCategories.Device, "Devices"),
         (AlertCategories.Weather, "Weather"),
         (AlertCategories.Solar, "Solar"),
+        (AlertCategories.System, "System"),
         (AlertCategories.Test, "Tests"),
     ];
 
@@ -217,6 +218,7 @@
         AlertCategories.Device => "Device",
         AlertCategories.Weather => "Weather",
         AlertCategories.Solar => "Solar",
+        AlertCategories.System => "System",
         AlertCategories.Test => "Test",
         _ => category,
     };

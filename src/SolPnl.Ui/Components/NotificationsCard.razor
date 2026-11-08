@@ -23,6 +23,8 @@
             </div>
             <FluentCheckbox Value="p.SolarUnderperformance" ValueChanged="@(v => Update(p with { SolarUnderperformance = v }))"
                             Label="Solar output falls below the forecast two sunny days in a row" />
+            <FluentCheckbox Value="p.BackupFailed" ValueChanged="@(v => Update(p with { BackupFailed = v }))"
+                            Label="A scheduled backup fails" />
 
             @if (_message is { } message)
             {

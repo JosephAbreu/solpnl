@@ -28,6 +28,24 @@ public sealed class PluginCatalog(
     private IEnumerable<IPlugin> AllPlugins =>
         registry.PluginTypes.Cast<IPlugin>().Concat(_weather).Concat(_alerts).Concat(_notifiers);
 
+    /// <summary>
+    /// Secret fields (passwords, keys) by plugin id: plugin-level settings and device settings alike. Backups leave
+    /// these out.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlySet<string>> SecretSettingKeys()
+    {
+        var result = new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal);
+        foreach (var plugin in AllPlugins)
+        {
+            var fields = plugin is IDevicePluginType type ? type.Settings
+                : plugin is IConfigurablePlugin configurable ? configurable.PluginSettings
+                : [];
+            var secrets = fields.Where(f => f.Kind == SettingKind.Secret).Select(f => f.Key).ToHashSet(StringComparer.Ordinal);
+            if (secrets.Count > 0) result[plugin.Id] = secrets;
+        }
+        return result;
+    }
+
     public async Task<IReadOnlyList<PluginInfo>> GetPluginsAsync(CancellationToken ct = default)
     {
         var devicePlugins = (await registry.GetPluginsAsync(ct))

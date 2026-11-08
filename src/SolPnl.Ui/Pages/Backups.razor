@@ -1,0 +1,411 @@
+@page "/backups"
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Forms
+@inject SolPnlApi Api
+
+<PageTitle>Backups · SolPnl</PageTitle>
+
+<div class="page">
+    <PageHeader Title="Backups" Subtitle="Copies of SolPnl's data, and restoring from one" Icon="@(new Icons.Regular.Size24.Archive())"
+                Breadcrumbs="@([("Home", ""), ("Backups", null)])">
+        <Commands>
+            <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArchiveArrowBack())"
+                          Disabled="@(_status is null || _status.Running || _restarting)" OnClick="BackUpNowAsync">Back up now</FluentButton>
+            <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowClockwise())" OnClick="LoadAsync">Refresh</FluentButton>
+        </Commands>
+    </PageHeader>
+
+    @if (_error is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Can't reach the SolPnl service">@_error</FluentMessageBar>
+    }
+    @if (_restarting)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Info" Title="Restoring">
+            @_restartMessage Waiting for SolPnl to come back…
+        </FluentMessageBar>
+    }
+    else if (_status?.LastRestore is { } restore && DateTimeOffset.UtcNow - restore.At < TimeSpan.FromDays(1))
+    {
+        <FluentMessageBar Intent="@(restore.Ok ? MessageBarIntent.Success : MessageBarIntent.Error)"
+                          Title="@(restore.Ok ? "Restore complete" : "Restore failed")">@restore.Message</FluentMessageBar>
+    }
+    @if (_message is { } message)
+    {
+        <FluentMessageBar Intent="@(_ok ? MessageBarIntent.Success : MessageBarIntent.Error)">@message</FluentMessageBar>
+    }
+
+    @if (_status is { } s)
+    {
+        <section class="panel status" aria-labelledby="status-heading">
+            <h2 id="status-heading">Status</h2>
+            <dl>
+                <dt>Last backup</dt>
+                <dd>
+                    @if (s.Running)
+                    {
+                        <span class="running"><FluentSpinner Size="SpinnerSize.Tiny" /> Backing up now…</span>
+                    }
+                    else if (s.LastBackup is { } last)
+                    {
+                        <span class="result">
+                            <FluentIcon Value="@(last.Ok ? (Icon)new Icons.Filled.Size16.CheckmarkCircle() : new Icons.Filled.Size16.ErrorCircle())"
+                                        Color="Color.Custom" CustomColor="@(last.Ok ? "var(--status-good)" : "var(--status-critical)")" />
+                            @When(last.At) — @(last.Ok ? $"{Size(last.SizeBytes)}, {last.Message.TrimEnd('.').ToLowerInvariant()} in {last.Seconds:0.#} s" : last.Message)
+                        </span>
+                    }
+                    else
+                    {
+                        <span>None yet</span>
+                    }
+                </dd>
+                <dt>Next backup</dt>
+                <dd>@(s.NextBackupAt is { } next ? (next <= DateTimeOffset.UtcNow ? "Within a minute" : When(next)) : "Off (scheduled backups are turned off)")</dd>
+                <dt>Folder</dt>
+                <dd class="mono">@s.Folder</dd>
+            </dl>
+        </section>
+
+        <section class="panel" aria-labelledby="files-heading">
+            <h2 id="files-heading">Backups on the server</h2>
+            @if (s.Backups.Count == 0)
+            {
+                <p class="hint">No backups yet. Select <strong>Back up now</strong>, or wait for the scheduled one.</p>
+            }
+            else
+            {
+                <table class="files">
+                    <thead>
+                        <tr><th scope="col">Taken</th><th scope="col">Type</th><th scope="col" class="num">Size</th><th scope="col"><span class="sr-only">Actions</span></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var b in s.Backups)
+                        {
+                            <tr>
+                                <td title="@b.Name">@b.CreatedAt.ToLocalTime().ToString("ddd, MMM d, yyyy h:mm tt", CultureInfo.CurrentCulture)</td>
+                                <td>@KindLabel(b.Kind)</td>
+                                <td class="num">@Size(b.SizeBytes)</td>
+                                <td class="actions">
+                                    <a class="action" href="@($"api/v1/backups/{Uri.EscapeDataString(b.Name)}")" download="@b.Name" title="Download @b.Name">
+                                        <FluentIcon Value="@(new Icons.Regular.Size20.ArrowDownload())" Color="Color.Custom" CustomColor="currentColor" />
+                                        <span>Download</span>
+                                    </a>
+                                    <button type="button" class="action" disabled="@_restarting" @onclick="() => Confirm(b.Name, ConfirmKind.Restore)">
+                                        <FluentIcon Value="@(new Icons.Regular.Size20.ArrowCounterclockwise())" Color="Color.Custom" CustomColor="currentColor" />
+                                        <span>Restore</span>
+                                    </button>
+                                    <button type="button" class="action" disabled="@_restarting" @onclick="() => Confirm(b.Name, ConfirmKind.Delete)" aria-label="Delete @b.Name">
+                                        <FluentIcon Value="@(new Icons.Regular.Size20.Delete())" Color="Color.Custom" CustomColor="currentColor" />
+                                    </button>
+                                </td>
+                            </tr>
+                            @if (_confirmName == b.Name)
+                            {
+                                <tr class="confirm-row">
+                                    <td colspan="4">
+                                        <div class="confirm" role="alertdialog" aria-label="Confirm">
+                                            @if (_confirm == ConfirmKind.Restore)
+                                            {
+                                                <p><strong>Restore the backup from @b.CreatedAt.ToLocalTime().ToString("MMM d, h:mm tt", CultureInfo.CurrentCulture)?</strong>
+                                                    All of SolPnl's data is replaced by the backup's. The current data is backed up first, and SolPnl
+                                                    restarts. That takes a few minutes, longer with a lot of history; SolPnl is unavailable meanwhile.</p>
+                                            }
+                                            else
+                                            {
+                                                <p><strong>Delete this backup?</strong> This can't be undone.</p>
+                                            }
+                                            <div class="confirm-actions">
+                                                <FluentButton Appearance="ButtonAppearance.Subtle" Disabled="_busy" OnClick="() => _confirmName = null">Cancel</FluentButton>
+                                                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="_busy" Loading="_busy" OnClick="ConfirmedAsync">
+                                                    @(_confirm == ConfirmKind.Restore ? "Restore" : "Delete")
+                                                </FluentButton>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            }
+            <p class="hint">Backups include everything except passwords (such as the email password): those stay on this server
+                and are kept when you restore. Keep a copy somewhere else too — download one now and then, or set the folder
+                below to a network share — so a failed SD card or disk doesn't take your backups with it.</p>
+        </section>
+
+        <section class="panel" aria-labelledby="schedule-heading">
+            <h2 id="schedule-heading">Schedule</h2>
+            <form class="schedule" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+                <FluentCheckbox @bind-Value="_enabled" Label="Back up every day" />
+                <div class="fields">
+                    <FluentTextInput @bind-Value="_time" Label="Time" Placeholder="02:30" Width="100%" Disabled="!_enabled"
+                                     aria-describedby="time-hint" />
+                    <FluentTextInput @bind-Value="_keep" Label="Backups to keep" InputMode="TextInputMode.Numeric" Width="100%" />
+                </div>
+                <p class="hint" id="time-hint">24-hour time, in your location's time zone. The oldest backups beyond the number to keep are deleted.</p>
+                <FluentTextInput @bind-Value="_folder" Label="Folder on the SolPnl server" Placeholder="@DefaultFolderHint" Width="100%" />
+                <p class="hint">Leave empty for the default. On a Raspberry Pi installed with deploy.ps1, SolPnl may only write to
+                    /var/lib/solpnl; to use another folder (e.g. a mounted network share), add it to
+                    <span class="mono">ReadWritePaths=</span> in the solpnl service file.</p>
+                <div class="form-actions">
+                    <FluentButton Type="ButtonType.Submit" Appearance="ButtonAppearance.Primary" Loading="_saving" Disabled="_saving">Save</FluentButton>
+                </div>
+            </form>
+        </section>
+
+        <section class="panel" aria-labelledby="upload-heading">
+            <h2 id="upload-heading">Restore from a file</h2>
+            <p class="hint">Restore a backup you downloaded earlier, or one from another SolPnl (any database type: SQLite,
+                MySQL/MariaDB or SQL Server). The current data is backed up first, then replaced; SolPnl restarts.</p>
+            <div class="upload">
+                <InputFile id="restore-file" accept=".zip,application/zip" OnChange="FileChosen" disabled="@_restarting" />
+                @if (_file is not null)
+                {
+                    <FluentButton Appearance="ButtonAppearance.Primary" Disabled="@(_busy || _restarting)" Loading="_busy" OnClick="UploadAsync">
+                        Restore @_file.Name
+                    </FluentButton>
+                }
+            </div>
+        </section>
+    }
+    else if (_error is null)
+    {
+        <FluentSpinner />
+    }
+</div>
+
+@code {
+    private enum ConfirmKind { Restore, Delete }
+
+    private const long MaxUpload = 2L * 1024 * 1024 * 1024;
+
+    private BackupStatus? _status;
+    private string? _error, _message, _restartMessage;
+    private bool _ok, _busy, _saving, _restarting;
+    private string? _confirmName;
+    private ConfirmKind _confirm;
+    private IBrowserFile? _file;
+
+    private bool _enabled;
+    private string? _time, _keep, _folder;
+
+    private readonly CancellationTokenSource _cts = new();
+
+    private string DefaultFolderHint => _status is { Settings.Folder: null } s ? s.Folder : "Default: backups in SolPnl's data folder";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _ = PollAsync(_cts.Token);
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var first = _status is null;
+            _status = await Api.GetBackupsAsync(_cts.Token);
+            _error = null;
+            if (first && _status is { } s) Fill(s.Settings);
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void Fill(BackupSettings settings)
+    {
+        _enabled = settings.Enabled;
+        _time = settings.Time;
+        _keep = settings.Keep.ToString(CultureInfo.InvariantCulture);
+        _folder = settings.Folder;
+    }
+
+    // While a backup runs, refresh every 2 s so the result shows when it's done; otherwise every 30 s.
+    private async Task PollAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(_status?.Running == true ? TimeSpan.FromSeconds(2) : TimeSpan.FromSeconds(30), ct);
+                if (_restarting) continue;
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task BackUpNowAsync()
+    {
+        _message = null;
+        var result = await Api.StartBackupAsync(_cts.Token);
+        if (!result.Ok)
+        {
+            _ok = false;
+            _message = result.Error;
+        }
+        await LoadAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        _message = null;
+        if (!int.TryParse(_keep, NumberStyles.Integer, CultureInfo.CurrentCulture, out var keep))
+        {
+            _ok = false;
+            _message = "Backups to keep must be a whole number.";
+            return;
+        }
+        _saving = true;
+        try
+        {
+            var result = await Api.SaveBackupSettingsAsync(new BackupSettings(_enabled, _time ?? "", keep,
+                string.IsNullOrWhiteSpace(_folder) ? null : _folder.Trim()), _cts.Token);
+            _ok = result.Ok;
+            _message = result.Ok ? "Schedule saved." : result.Error;
+            if (result.Value is { } saved) Fill(saved);
+            await LoadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _ok = false;
+            _message = $"Can't reach SolPnl: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Confirm(string name, ConfirmKind kind)
+    {
+        _confirmName = name;
+        _confirm = kind;
+        _message = null;
+    }
+
+    private async Task ConfirmedAsync()
+    {
+        if (_confirmName is not { } name) return;
+        _busy = true;
+        try
+        {
+            if (_confirm == ConfirmKind.Delete)
+            {
+                var result = await Api.DeleteBackupAsync(name, _cts.Token);
+                _ok = result.Ok;
+                _message = result.Ok ? "Backup deleted." : result.Error;
+                await LoadAsync();
+            }
+            else
+            {
+                await RestartedAsync(await Api.RestoreBackupAsync(name, _cts.Token));
+            }
+            _confirmName = null;
+        }
+        catch (HttpRequestException ex)
+        {
+            _ok = false;
+            _message = $"Can't reach SolPnl: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void FileChosen(InputFileChangeEventArgs e)
+    {
+        _file = e.File;
+        _message = null;
+    }
+
+    private async Task UploadAsync()
+    {
+        if (_file is null) return;
+        if (_file.Size > MaxUpload)
+        {
+            _ok = false;
+            _message = "That file is too large to upload from the browser (over 2 GB).";
+            return;
+        }
+        _busy = true;
+        try
+        {
+            await using var stream = _file.OpenReadStream(MaxUpload, _cts.Token);
+            await RestartedAsync(await Api.RestoreUploadAsync(stream, _cts.Token));
+            _file = null;
+        }
+        catch (HttpRequestException ex)
+        {
+            _ok = false;
+            _message = $"Can't reach SolPnl: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>After a restore was accepted: wait for SolPnl to go down and come back, then show the result.</summary>
+    private async Task RestartedAsync(ApiResult<PluginActionResult> result)
+    {
+        if (!result.Ok)
+        {
+            _ok = false;
+            _message = result.Error;
+            return;
+        }
+        _restarting = true;
+        _restartMessage = result.Value?.Message;
+        _message = null;
+        StateHasChanged();
+
+        var deadline = DateTimeOffset.UtcNow.AddMinutes(30);
+        await Task.Delay(TimeSpan.FromSeconds(3), _cts.Token); // let it stop first
+        while (DateTimeOffset.UtcNow < deadline && !await Api.IsUpAsync(_cts.Token))
+            await Task.Delay(TimeSpan.FromSeconds(3), _cts.Token);
+
+        _restarting = false;
+        await LoadAsync();
+    }
+
+    private static string KindLabel(string kind) => kind switch
+    {
+        BackupKinds.Scheduled => "Scheduled",
+        BackupKinds.Manual => "Manual",
+        BackupKinds.BeforeRestore => "Before a restore",
+        _ => kind,
+    };
+
+    private static string Size(long? bytes) => bytes switch
+    {
+        null => "–",
+        < 1024 * 1024 => $"{bytes.Value / 1024.0:N0} KB",
+        < 1024L * 1024 * 1024 => $"{bytes.Value / (1024.0 * 1024):N1} MB",
+        _ => $"{bytes.Value / (1024.0 * 1024 * 1024):N2} GB",
+    };
+
+    private static string When(DateTimeOffset t)
+    {
+        var local = t.ToLocalTime();
+        var today = DateTimeOffset.Now.Date;
+        var day = local.Date == today ? "Today" : local.Date == today.AddDays(1) ? "Tomorrow" : local.Date == today.AddDays(-1) ? "Yesterday"
+            : local.ToString("ddd, MMM d", CultureInfo.CurrentCulture);
+        return $"{day} {local.ToString("h:mm tt", CultureInfo.CurrentCulture)}";
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

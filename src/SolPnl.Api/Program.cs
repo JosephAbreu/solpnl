@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using SolPnl.Api;
 using SolPnl.Contracts.Plugins;
 using SolPnl.Core;
+using SolPnl.Core.Backup;
 using SolPnl.Core.Data;
 using SolPnl.Core.Devices;
 using SolPnl.Core.Setup;
@@ -26,6 +27,8 @@ do
     if (app.Services.GetService<MigrationService>() is { } migrations)
     {
         await migrations.MigrateAsync();
+        // A restore staged from the Backups page runs here, before polling or anything else touches the data.
+        await app.Services.GetRequiredService<BackupService>().ApplyPendingRestoreAsync();
         await app.Services.GetRequiredService<DeviceRegistry>().InitializeAsync(app.Configuration);
     }
     await app.RunAsync();
@@ -60,6 +63,7 @@ static WebApplication BuildApp(string[] args, RestartSignal restart)
     else
     {
         builder.Services.AddSolPnlCore(builder.Configuration);
+        builder.Services.AddSingleton(new DataDirectory(dataDirectory));
 
         // Installed device plugin types. Devices themselves are added in the UI (stored in the database).
         builder.Services.AddSingleton<IDevicePluginType, SolarmanSrnePluginType>();
@@ -107,6 +111,7 @@ static WebApplication BuildApp(string[] args, RestartSignal restart)
         api.MapReadingEndpoints();
         api.MapManagementEndpoints();
         api.MapSiteEndpoints();
+        api.MapBackupEndpoints();
     }
 
     // Unknown API routes get a JSON error instead of the web app's index.html.
