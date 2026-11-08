@@ -29,7 +29,7 @@ public sealed class OpenMeteoProvider(HttpClient http) : IWeatherProvider, ILoca
         var url = ForecastUrl +
                   $"?latitude={F(location.Latitude)}&longitude={F(location.Longitude)}" +
                   (location.ElevationMeters is { } e ? $"&elevation={F(e)}" : "") +
-                  "&current=temperature_2m,relative_humidity_2m,cloud_cover,wind_speed_10m,precipitation,weather_code,shortwave_radiation,is_day" +
+                  "&current=temperature_2m,relative_humidity_2m,cloud_cover,wind_speed_10m,precipitation,weather_code,shortwave_radiation,is_day,pressure_msl" +
                   "&hourly=temperature_2m,cloud_cover,shortwave_radiation,precipitation_probability" +
                   "&daily=temperature_2m_max,temperature_2m_min,shortwave_radiation_sum,precipitation_probability_max,weather_code" +
                   $"&timezone={Uri.EscapeDataString(location.TimeZoneId)}&timeformat=unixtime&forecast_days=3";
@@ -69,7 +69,8 @@ public sealed class OpenMeteoProvider(HttpClient http) : IWeatherProvider, ILoca
                 PrecipitationMm: Num(c, "precipitation"),
                 IrradianceWm2: Num(c, "shortwave_radiation"),
                 WeatherCode: (int?)Num(c, "weather_code"),
-                IsDay: Num(c, "is_day") is { } d ? d > 0 : null);
+                IsDay: Num(c, "is_day") is { } d ? d > 0 : null,
+                PressureHpa: Num(c, "pressure_msl"));
         }
 
         var hourly = new List<HourlyForecast>();

@@ -47,7 +47,7 @@ A portal-style UI built with [Fluent UI Blazor](https://www.fluentui-blazor.net)
 - **Weather** – sun times, current conditions, today's forecast vs actual temperatures, solar insights, weather charts
   (temperature, sunlight, cloud cover) and a daily history (forecast vs actual, sunlight, solar/load/grid energy).
   The dashboard shows the same "today" section and any active weather alerts.
-- **Settings** – the location (search for a place, or enter coordinates), temperature unit (°F/°C), which events send
+- **Settings** – the location (search for a place, or enter coordinates), units (US or metric), which events send
   notifications (with a test button), and a card for each enabled plugin that has its own settings (e.g. Email).
 - **Plugins** – installed plugins with their device counts. **Disable** pauses all of a plugin's devices (settings and
   history are kept); **Enable** resumes them.
@@ -95,13 +95,17 @@ The schema is created and updated at startup from numbered SQL scripts in
 Set the location in **Settings**. Then:
 - **Sun times** (sunrise, sunset, solar noon, daylight) and **clear-sky sunlight** are calculated on the machine (NOAA
   solar position formulas), with no network access.
-- **Weather** comes from a weather service plugin (Open-Meteo by default; free, no API key). Current conditions are
-  logged every 15 minutes as readings of the reserved device `site-weather`, so they get history, summaries and charts
+- **Weather** comes from a weather service plugin (Open-Meteo by default; free, no API key). Current conditions
+  (temperature, humidity, cloud, wind, rain, sunlight and sea-level barometric pressure) are logged every 15 minutes as readings of the reserved device `site-weather`, so they get history, summaries and charts
   like device data.
 - **Daily summaries** keep each day's forecast as it stood before the day began, next to what actually happened:
   high/low from the logged weather, and solar/load/grid energy from device readings.
 - **Insights**: tomorrow's solar outlook (kWh, once SolPnl has learned your system from 3 sunny days), the best
   window for heavy loads, and a check that solar output matches the forecast (flags two low sunny days in a row).
+- **Barometric pressure** shows with its 3-hour tendency: rising or falling when it changes by at least 1 hPa
+  (0.03 inHg), "rapidly" from 3 hPa (0.09 inHg). A falling barometer often means a storm is coming.
+- **Units**: US (°F, inHg, mph, ft) or metric (°C, hPa, km/h, m), chosen in Settings. Values are stored in metric;
+  the location's elevation is entered in feet or meters to match.
 - **Weather alerts** come from the NWS plugin (US only). Disable it on the Plugins page outside the US.
 
 Weather and alert plugins are *service* plugins and can be disabled on the Plugins page; sensors on your network

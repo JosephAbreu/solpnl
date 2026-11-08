@@ -51,7 +51,7 @@
             <FluentTextInput @bind-Value="_name" Label="Name" Placeholder="Home" Width="100%" MaxLength="100" />
             <FluentTextInput @bind-Value="_latitude" Label="Latitude" Required="true" Placeholder="30.2672" InputMode="TextInputMode.Decimal" Width="100%" />
             <FluentTextInput @bind-Value="_longitude" Label="Longitude" Required="true" Placeholder="-97.7431" InputMode="TextInputMode.Decimal" Width="100%" />
-            <FluentTextInput @bind-Value="_elevation" Label="Elevation (m)" Placeholder="Optional" InputMode="TextInputMode.Decimal" Width="100%" />
+            <FluentTextInput @bind-Value="_elevation" Label="@($"Elevation ({MetricFormat.ElevationUnit})")" Placeholder="Optional" InputMode="TextInputMode.Decimal" Width="100%" />
             <FluentTextInput @bind-Value="_timeZone" Label="Time zone" Placeholder="America/Chicago" Width="100%" />
             <div class="actions">
                 <FluentButton Type="ButtonType.Submit" Appearance="ButtonAppearance.Primary" Loading="_saving" Disabled="_saving">Save location</FluentButton>
@@ -68,8 +68,8 @@
 
     <section class="panel section" aria-labelledby="units-heading">
         <h2 id="units-heading">Units</h2>
-        <div class="options" role="radiogroup" aria-label="Temperature unit">
-            @foreach (var (unit, label) in new[] { (TemperatureUnits.Fahrenheit, "Fahrenheit (°F)"), (TemperatureUnits.Celsius, "Celsius (°C)") })
+        <div class="options" role="radiogroup" aria-label="Units">
+            @foreach (var (unit, label) in new[] { (TemperatureUnits.Fahrenheit, "US (°F, inHg, mph, ft)"), (TemperatureUnits.Celsius, "Metric (°C, hPa, km/h, m)") })
             {
                 <label class="option @(_unit == unit ? "selected" : null)">
                     <input type="radio" name="temperature" value="@unit" checked="@(_unit == unit)" @onchange="() => SetUnitAsync(unit)" />
@@ -103,6 +103,11 @@
     private string? _searchError, _locationMessage, _loadError, _unitError;
     private bool _searching, _saving, _locationOk;
     private string _unit = TemperatureUnits.Fahrenheit;
+
+    // Elevation is stored in meters and edited in the display unit (feet with US units). The meters behind the text
+    // as last filled are kept, so saving an untouched value doesn't drift through rounding.
+    private double? _elevationMeters;
+    private string? _elevationShown;
     private IReadOnlyList<PluginInfo> _configurable = [];
     private IReadOnlyList<PluginInfo> _disabledWithSettings = [];
 
@@ -132,7 +137,7 @@
         _name = name;
         _latitude = N(lat);
         _longitude = N(lon);
-        _elevation = elevation is { } e ? N(e, "0.#") : null;
+        SetElevation(elevation);
         _timeZone = zone ?? _timeZone;
     }
 
@@ -174,16 +179,11 @@
             _locationMessage = "Enter latitude and longitude as decimal numbers, e.g. 30.2672 and -97.7431.";
             return;
         }
-        double? elevation = null;
-        if (!string.IsNullOrWhiteSpace(_elevation))
+        if (!TryElevation(out var elevation))
         {
-            if (!TryNumber(_elevation, out var e))
-            {
-                _locationOk = false;
-                _locationMessage = "Elevation must be a number of meters, or left empty.";
-                return;
-            }
-            elevation = e;
+            _locationOk = false;
+            _locationMessage = $"Elevation must be a number of {(MetricFormat.ElevationUnit == "ft" ? "feet" : "meters")}, or left empty.";
+            return;
         }
 
         _saving = true;
@@ -211,8 +211,11 @@
     {
         _unitError = null;
         var previous = _unit;
+        // Show the elevation being edited in the new unit (left as typed if it isn't a number).
+        var hasElevation = TryElevation(out var elevationMeters);
         _unit = unit;
         MetricFormat.TemperatureUnit = unit;
+        if (hasElevation) SetElevation(elevationMeters);
         try
         {
             var result = await Api.SetTemperatureUnitAsync(unit);
@@ -222,8 +225,30 @@
         {
             _unit = previous;
             MetricFormat.TemperatureUnit = previous;
+            if (hasElevation) SetElevation(elevationMeters);
             _unitError = $"Couldn't save: {ex.Message}";
         }
+    }
+
+    private void SetElevation(double? meters)
+    {
+        _elevationMeters = meters;
+        _elevation = _elevationShown = meters is { } m ? MetricFormat.ElevationInput(m) : null;
+    }
+
+    /// <summary>The elevation field in meters: null when empty, false when it isn't a number.</summary>
+    private bool TryElevation(out double? meters)
+    {
+        meters = null;
+        if (string.IsNullOrWhiteSpace(_elevation)) return true;
+        if (_elevation == _elevationShown)
+        {
+            meters = _elevationMeters;
+            return true;
+        }
+        if (!TryNumber(_elevation, out var value)) return false;
+        meters = MetricFormat.ElevationToMeters(value);
+        return true;
     }
 
     // Accept the invariant form (30.2672) and the user's own culture (e.g. 30,2672).

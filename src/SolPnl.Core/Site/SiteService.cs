@@ -145,8 +145,12 @@ public sealed class SiteService(
             SunCalculator.ClearSkyIrradiation(today.AddDays(1), location.Latitude, location.Longitude, zone),
             pastDays));
 
+        var pressureHistory = await store.GetHistoryAsync(SiteDevices.Weather, WeatherMetrics.Pressure,
+            now.AddHours(-4), now, HistoryResolution.Raw, ct);
+        var pressure = PressureTendency(pressureHistory.Points);
+
         return new SiteOverview(location, sunToday, sunTomorrow, weather?.Current, weather?.Source, weather?.RetrievedAt,
-            todaySummary, tomorrowForecast, insights, _alerts);
+            todaySummary, tomorrowForecast, insights, _alerts, pressure);
     }
 
     private async Task LogConditionsAsync(string source, WeatherNow now, CancellationToken ct)
@@ -166,6 +170,7 @@ public sealed class SiteService(
         Add(WeatherMetrics.WindSpeed, now.WindSpeedKmh, "km/h");
         Add(WeatherMetrics.Precipitation, now.PrecipitationMm, "mm");
         Add(WeatherMetrics.Irradiance, now.IrradianceWm2, "W/m²");
+        Add(WeatherMetrics.Pressure, now.PressureHpa, "hPa");
 
         if (readings.Count > 0)
             await store.SaveAsync(new DeviceInfo(SiteDevices.Weather, source, "Weather", null, null), readings, ct);
@@ -182,6 +187,31 @@ public sealed class SiteService(
             total = (total ?? 0) + history.Points.Sum(p => p.Value) / 60.0; // each point is a 1-minute average in W
         }
         return total is { } t ? Math.Round(t, 1) : null;
+    }
+
+    /// <summary>Change of at least this much in 3 hours counts as rising/falling (barometric tendency).</summary>
+    public const double TendencyThresholdHpa = 1.0;
+
+    /// <summary>Change of at least this much in 3 hours counts as rapid (a strong sign of changing weather).</summary>
+    public const double RapidThresholdHpa = 3.0;
+
+    /// <summary>
+    /// Latest pressure and its change from about 3 hours earlier (the reading closest to that time, within 45
+    /// minutes). Null without readings; no change figure until 3 hours of history exist.
+    /// </summary>
+    public static PressureTrend? PressureTendency(IReadOnlyList<HistoryPoint> points)
+    {
+        if (points.Count == 0) return null;
+        var latest = points.MaxBy(p => p.Timestamp)!;
+        var target = latest.Timestamp.AddHours(-3);
+        var earlier = points
+            .Where(p => (p.Timestamp - target).Duration() <= TimeSpan.FromMinutes(45))
+            .MinBy(p => (p.Timestamp - target).Duration());
+        if (earlier is null) return new PressureTrend(latest.Value, null, "steady", false);
+
+        var change = Math.Round(latest.Value - earlier.Value, 1);
+        var tendency = change >= TendencyThresholdHpa ? "rising" : change <= -TendencyThresholdHpa ? "falling" : "steady";
+        return new PressureTrend(latest.Value, change, tendency, Math.Abs(change) >= RapidThresholdHpa);
     }
 
     private DateOnly Today(TimeZoneInfo zone) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), zone).DateTime);

@@ -244,6 +244,8 @@ public abstract class StorageTests : IAsyncLifetime
         var overview = await site.GetOverviewAsync();
         Assert.Equal("Home", overview.Location!.Name);
         Assert.Equal(19.0, overview.Weather!.TemperatureC);
+        Assert.Equal(1015.2, overview.Pressure!.Hpa);   // logged as weather.pressure and read back
+        Assert.Null(overview.Pressure.ChangeHpa3h);    // not 3 hours of history yet
         Assert.Equal(day, overview.Today!.Date);
         Assert.Contains(overview.Insights, i => i.Kind == InsightKinds.SolarOutlook);
 
@@ -443,7 +445,7 @@ public abstract class StorageTests : IAsyncLifetime
         public Task<WeatherReport> GetWeatherAsync(SiteLocation location, CancellationToken cancellationToken = default) => Task.FromResult(Report);
 
         public static WeatherReport At(DateTimeOffset time, double temperature, double todayHigh = 22, double tomorrowHigh = 18) =>
-            new("Fake", new WeatherNow(time, temperature, 50, 20, 5, 0, 300, 1, true), [],
+            new("Fake", new WeatherNow(time, temperature, 50, 20, 5, 0, 300, 1, true, 1015.2), [],
                 [new DailyForecast(new DateOnly(2026, 11, 7), todayHigh, 12, 3.5, 10, 1),
                  new DailyForecast(new DateOnly(2026, 11, 8), tomorrowHigh, 10, 4.0, 10, 1)], time);
     }
