@@ -20,11 +20,52 @@
   <ItemGroup>
     <ProjectReference Include="..\SolPnl.Core\SolPnl.Core.csproj" />
     <ProjectReference Include="..\SolPnl.Web\SolPnl.Web.csproj" />
-    <ProjectReference Include="..\plugins\SolPnl.Plugin.SolarmanSrne\SolPnl.Plugin.SolarmanSrne.csproj" />
-    <ProjectReference Include="..\plugins\SolPnl.Plugin.Simulator\SolPnl.Plugin.Simulator.csproj" />
-    <ProjectReference Include="..\plugins\SolPnl.Plugin.OpenMeteo\SolPnl.Plugin.OpenMeteo.csproj" />
-    <ProjectReference Include="..\plugins\SolPnl.Plugin.NwsAlerts\SolPnl.Plugin.NwsAlerts.csproj" />
-    <ProjectReference Include="..\plugins\SolPnl.Plugin.Notify.Smtp\SolPnl.Plugin.Notify.Smtp.csproj" />
   </ItemGroup>
+
+  <!--
+    Built-in plugins. SolPnl doesn't compile them in: each one's build output is a package, copied to plugins/<name>/
+    next to SolPnl (in the build output and in a published release) and loaded at startup, so it can be removed like
+    a plugin added later. The project references only make sure they're built first.
+  -->
+  <ItemGroup>
+    <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.SolarmanSrne\SolPnl.Plugin.SolarmanSrne.csproj" />
+    <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Simulator\SolPnl.Plugin.Simulator.csproj" />
+    <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.OpenMeteo\SolPnl.Plugin.OpenMeteo.csproj" />
+    <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.NwsAlerts\SolPnl.Plugin.NwsAlerts.csproj" />
+    <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Notify.Smtp\SolPnl.Plugin.Notify.Smtp.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="@(SolPnlPlugin)" ReferenceOutputAssembly="false" Private="false"
+                      GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" />
+  </ItemGroup>
+
+  <Target Name="ResolveSolPnlPlugins">
+    <!-- Plugins are portable class libraries: ask for their output without this project's runtime identifier. -->
+    <MSBuild Projects="@(SolPnlPlugin)" Targets="GetTargetPath" Properties="Configuration=$(Configuration)"
+             RemoveProperties="RuntimeIdentifier;SelfContained">
+      <Output TaskParameter="TargetOutputs" ItemName="_SolPnlPluginOutput" />
+    </MSBuild>
+    <ItemGroup>
+      <!--
+        The package is the plugin's top-level output files (built-in plugins have no native libraries). SolPnl.Contracts
+        always comes from SolPnl itself, so packages leave it out.
+      -->
+      <_SolPnlPluginFile Include="%(_SolPnlPluginOutput.RootDir)%(_SolPnlPluginOutput.Directory)*"
+                         Exclude="%(_SolPnlPluginOutput.RootDir)%(_SolPnlPluginOutput.Directory)SolPnl.Contracts.*"
+                         PluginFolder="%(_SolPnlPluginOutput.Filename)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="CopySolPnlPlugins" AfterTargets="Build" DependsOnTargets="ResolveSolPnlPlugins">
+    <RemoveDir Directories="$(OutDir)plugins" />
+    <Copy SourceFiles="@(_SolPnlPluginFile)" DestinationFiles="$(OutDir)plugins\%(PluginFolder)\%(Filename)%(Extension)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="PublishSolPnlPlugins" AfterTargets="Publish" DependsOnTargets="ResolveSolPnlPlugins">
+    <RemoveDir Directories="$(PublishDir)plugins" />
+    <Copy SourceFiles="@(_SolPnlPluginFile)" Condition="'%(Extension)' != '.pdb'"
+          DestinationFiles="$(PublishDir)plugins\%(PluginFolder)\%(Filename)%(Extension)" />
+  </Target>
 
 </Project>

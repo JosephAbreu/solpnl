@@ -26,6 +26,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SolPnl.Core\SolPnl.Core.csproj" />
+    <!-- A real plugin for the plugin package tests, which load it from a package folder. -->
+    <ProjectReference Include="..\..\src\plugins\SolPnl.Plugin.Simulator\SolPnl.Plugin.Simulator.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,5 @@
+{
+  "id": "solpnl.nws-alerts",
+  "name": "NWS weather alerts",
+  "assembly": "SolPnl.Plugin.NwsAlerts.dll"
+}
