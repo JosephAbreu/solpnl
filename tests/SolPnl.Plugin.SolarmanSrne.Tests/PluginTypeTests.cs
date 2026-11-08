@@ -2,7 +2,7 @@ namespace SolPnl.Plugin.SolarmanSrne.Tests;
 
 public class PluginTypeTests
 {
-    private static Dictionary<string, string?> Settings(string? host = "192.168.4.31", string? serial = "3589272256",
+    private static Dictionary<string, string?> Settings(string? host = "192.168.1.50", string? serial = "2712345678",
         string? port = null, string? slave = null) =>
         new() { ["host"] = host, ["loggerSerial"] = serial, ["port"] = port, ["slaveId"] = slave };
 
@@ -10,8 +10,8 @@ public class PluginTypeTests
     public void ParseOptions_UsesDefaults()
     {
         var options = SolarmanSrnePluginType.ParseOptions(Settings());
-        Assert.Equal("192.168.4.31", options.Host);
-        Assert.Equal(3589272256u, options.LoggerSerial);
+        Assert.Equal("192.168.1.50", options.Host);
+        Assert.Equal(2712345678u, options.LoggerSerial);
         Assert.Equal(8899, options.Port);
         Assert.Equal((byte)1, options.SlaveId);
     }
@@ -26,13 +26,13 @@ public class PluginTypeTests
     }
 
     [Theory]
-    [InlineData(null, "3589272256", null, null, "Logger address is required")]
-    [InlineData("bad host", "3589272256", null, null, "isn't a valid")]
-    [InlineData("192.168.4.31", "abc", null, null, "serial number")]
-    [InlineData("192.168.4.31", "0", null, null, "serial number")]
-    [InlineData("192.168.4.31", "99999999999", null, null, "serial number")]
-    [InlineData("192.168.4.31", "3589272256", "70000", null, "Port")]
-    [InlineData("192.168.4.31", "3589272256", null, "300", "Modbus address")]
+    [InlineData(null, "2712345678", null, null, "Logger address is required")]
+    [InlineData("bad host", "2712345678", null, null, "isn't a valid")]
+    [InlineData("192.168.1.50", "abc", null, null, "serial number")]
+    [InlineData("192.168.1.50", "0", null, null, "serial number")]
+    [InlineData("192.168.1.50", "99999999999", null, null, "serial number")]
+    [InlineData("192.168.1.50", "2712345678", "70000", null, "Port")]
+    [InlineData("192.168.1.50", "2712345678", null, "300", "Modbus address")]
     public void ParseOptions_RejectsInvalid(string? host, string? serial, string? port, string? slave, string expected)
     {
         var ex = Assert.Throws<ArgumentException>(() => SolarmanSrnePluginType.ParseOptions(Settings(host, serial, port, slave)));
@@ -44,7 +44,7 @@ public class PluginTypeTests
     {
         var type = new SolarmanSrnePluginType();
         await using var plugin = (SolarmanSrnePlugin)type.Create(Settings());
-        Assert.Equal("solarman-3589272256", (await plugin.GetDeviceInfoAsync()).DeviceId);
+        Assert.Equal("solarman-2712345678", (await plugin.GetDeviceInfoAsync()).DeviceId);
     }
 
     [Fact]

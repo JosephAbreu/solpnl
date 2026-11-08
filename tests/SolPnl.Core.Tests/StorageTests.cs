@@ -135,8 +135,8 @@ public abstract class StorageTests : IAsyncLifetime
         await Migrations().MigrateAsync();
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Plugins:SolarmanSrne:Host"] = "192.168.4.31",
-            ["Plugins:SolarmanSrne:LoggerSerial"] = "3589272256",
+            ["Plugins:SolarmanSrne:Host"] = "192.168.1.50",
+            ["Plugins:SolarmanSrne:LoggerSerial"] = "2712345678",
         }).Build();
 
         await using (var registry = Registry(new SrneLikeType()))
@@ -144,8 +144,8 @@ public abstract class StorageTests : IAsyncLifetime
             await registry.InitializeAsync(config);
             var imported = Assert.Single(await registry.GetDevicesAsync());
             Assert.Equal("Inverter", imported.Name);
-            Assert.Equal("solarman-3589272256", imported.DeviceId);
-            Assert.Equal("192.168.4.31", imported.Settings["host"]);
+            Assert.Equal("solarman-2712345678", imported.DeviceId);
+            Assert.Equal("192.168.1.50", imported.Settings["host"]);
             Assert.Single(registry.ActiveDevices);
 
             // The user removes it in the UI...

@@ -23,11 +23,11 @@ public class SetupTests
     {
         var settings = StorageSetupService.BuildSettings(Request("mysql") with
         {
-            Server = "192.168.4.20", Port = 3307, Database = "solpnl", User = "solpnl", Password = "p;w=d",
+            Server = "192.168.1.20", Port = 3307, Database = "solpnl", User = "solpnl", Password = "p;w=d",
         });
         Assert.Equal(DbDriver.MySql, settings.Driver);
         var cs = new MySql.Data.MySqlClient.MySqlConnectionStringBuilder(settings.ConnectionString);
-        Assert.Equal("192.168.4.20", cs.Server);
+        Assert.Equal("192.168.1.20", cs.Server);
         Assert.Equal(3307u, cs.Port);
         Assert.Equal("p;w=d", cs.Password); // special characters survive quoting
     }
