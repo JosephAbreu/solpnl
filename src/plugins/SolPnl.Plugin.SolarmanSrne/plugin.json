@@ -1,0 +1,5 @@
+{
+  "id": "solpnl.solarman-srne",
+  "name": "Solarman + SRNE inverters",
+  "assembly": "SolPnl.Plugin.SolarmanSrne.dll"
+}

@@ -1,4 +1,6 @@
 @page "/plugins"
+@using Microsoft.AspNetCore.Components.Forms
+@implements IDisposable
 @inject SolPnlApi Api
 @inject NavigationManager Nav
 
@@ -8,6 +10,8 @@
     <PageHeader Title="Plugins" Subtitle="Support for hardware and services" Icon="@(new Icons.Regular.Size24.PuzzlePiece())"
                 Breadcrumbs="@([("Home", ""), ("Plugins", null)])">
         <Commands>
+            <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.Add())" Disabled="_restarting"
+                          OnClick="() => _adding = !_adding">Add plugin</FluentButton>
             <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.ArrowClockwise())" OnClick="LoadAsync">Refresh</FluentButton>
         </Commands>
     </PageHeader>
@@ -15,6 +19,54 @@
     @if (_error is not null)
     {
         <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Something went wrong">@_error</FluentMessageBar>
+    }
+
+    @if (_restarting)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Info" Title="Restarting">
+            @_restartMessage Waiting for SolPnl to come back…
+        </FluentMessageBar>
+    }
+    else if (_done is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Success">@_done</FluentMessageBar>
+    }
+
+    @if (_adding && _packages is not null)
+    {
+        <section class="panel add" aria-label="Add a plugin">
+            <h2>Add a plugin</h2>
+            @if (_packages.UploadAllowed)
+            {
+                <p>
+                    Choose a plugin package (a .zip with a plugin.json). A plugin runs on this machine with SolPnl's access to your
+                    network and data, so only add plugins from people you trust. SolPnl restarts to load it; a package with the same
+                    id as one you added before replaces it.
+                </p>
+                <div class="add-row">
+                    <InputFile id="plugin-file" accept=".zip,application/zip" OnChange="FileChosen" disabled="@(_busy || _restarting)" />
+                    @if (_file is not null)
+                    {
+                        <FluentButton Appearance="ButtonAppearance.Primary" Disabled="@(_busy || _restarting)" Loading="_busy" OnClick="UploadAsync">
+                            Add @_file.Name
+                        </FluentButton>
+                    }
+                </div>
+            }
+            else
+            {
+                <p>
+                    Adding plugins from the browser is turned off, because a plugin is code that runs on this machine and SolPnl has
+                    no login yet. Either:
+                </p>
+                <ul>
+                    <li>Unzip the package into its own folder in the <code>plugins</code> folder of SolPnl's data directory
+                        (<code>/var/lib/solpnl/plugins</code> on the Raspberry Pi) and restart SolPnl, or</li>
+                    <li>add <code>"Plugins": {"AllowUpload": true}</code> to <code>appsettings.Local.json</code> in the data directory and
+                        restart SolPnl to add plugins here.</li>
+                </ul>
+            }
+        </section>
     }
 
     @if (_plugins is null && _error is null)
@@ -26,6 +78,7 @@
         <div class="plugin-list">
             @foreach (var plugin in _plugins)
             {
+                var package = PackageOf(plugin);
                 <section class="panel plugin" aria-label="@plugin.DisplayName">
                     <div class="plugin-main">
                         <div class="plugin-icon"><FluentIcon Value="@(new Icons.Regular.Size24.PuzzlePiece())" Color="Color.Custom" CustomColor="var(--colorBrandForeground1)" /></div>
@@ -38,6 +91,11 @@
                                 @if (plugin.Kind == PluginKinds.Device)
                                 {
                                     <span>@plugin.DeviceCount @(plugin.DeviceCount == 1 ? "device" : "devices")</span>
+                                    <span>·</span>
+                                }
+                                @if (package is not null)
+                                {
+                                    <span>@SourceLabel(package)</span>
                                     <span>·</span>
                                 }
                                 @if (plugin.Enabled)
@@ -58,16 +116,21 @@
                             }
                             @if (plugin.Enabled)
                             {
-                                <FluentButton Appearance="ButtonAppearance.Outline" Disabled="_busy" OnClick="() => DisableAsync(plugin)">Disable</FluentButton>
+                                <FluentButton Appearance="ButtonAppearance.Outline" Disabled="@(_busy || _restarting)" OnClick="() => DisableAsync(plugin)">Disable</FluentButton>
                             }
                             else
                             {
-                                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="_busy" OnClick="() => SetEnabledAsync(plugin, true)">Enable</FluentButton>
+                                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="@(_busy || _restarting)" OnClick="() => SetEnabledAsync(plugin, true)">Enable</FluentButton>
+                            }
+                            @if (package is not null)
+                            {
+                                <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.Delete())" Disabled="@(_busy || _restarting)"
+                                              OnClick="() => Confirm(plugin.Id, ConfirmKind.Remove)" aria-label="@($"Remove {plugin.DisplayName}")">Remove</FluentButton>
                             }
                         </div>
                     </div>
 
-                    @if (_confirming == plugin.Id)
+                    @if (_confirming == plugin.Id && _confirmKind == ConfirmKind.Disable)
                     {
                         <div class="confirm" role="alertdialog" aria-label="Confirm disabling @plugin.DisplayName">
                             <p>
@@ -81,17 +144,80 @@
                             </div>
                         </div>
                     }
+                    else if (_confirming == plugin.Id && _confirmKind == ConfirmKind.Remove && package is not null)
+                    {
+                        <div class="confirm" role="alertdialog" aria-label="Confirm removing @plugin.DisplayName">
+                            <p>
+                                <strong>Remove @plugin.DisplayName?</strong>
+                                SolPnl restarts without it.
+                                @if (plugin.DeviceCount > 0)
+                                {
+                                    @($" Its {plugin.DeviceCount} {(plugin.DeviceCount == 1 ? "device stops" : "devices stop")} reporting until you add it again; device settings and history are kept.")
+                                }
+                                @if (OtherPlugins(package, plugin) is { Count: > 0 } others)
+                                {
+                                    @($" It comes in one package with {string.Join(", ", others)}, which {(others.Count == 1 ? "is" : "are")} removed too.")
+                                }
+                                @(package.Source == PluginPackageSources.BuiltIn
+                                    ? " It ships with SolPnl, so you can restore it from this page later."
+                                    : " To use it again, add its package again.")
+                            </p>
+                            <div class="confirm-actions">
+                                <FluentButton Appearance="ButtonAppearance.Subtle" Disabled="_busy" OnClick="() => _confirming = null">Cancel</FluentButton>
+                                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="_busy" Loading="_busy" OnClick="() => RemoveAsync(package)">Remove</FluentButton>
+                            </div>
+                        </div>
+                    }
                 </section>
             }
         </div>
+
+        @if (NotRunning is { Count: > 0 } notRunning)
+        {
+            <h2 class="section-title">Not running</h2>
+            <div class="plugin-list">
+                @foreach (var package in notRunning)
+                {
+                    <section class="panel plugin" aria-label="@package.Name">
+                        <div class="plugin-main">
+                            <div class="plugin-icon muted-icon"><FluentIcon Value="@(new Icons.Regular.Size24.PuzzlePiece())" Color="Color.Custom" CustomColor="var(--colorNeutralForeground3)" /></div>
+                            <div class="plugin-text">
+                                <h2>@package.Name</h2>
+                                <p>@NotRunningReason(package)</p>
+                                <div class="meta"><span>@SourceLabel(package)</span></div>
+                            </div>
+                            <div class="plugin-actions">
+                                @if (package.State == PluginPackageStates.Removed)
+                                {
+                                    <FluentButton Appearance="ButtonAppearance.Primary" Disabled="@(_busy || _restarting)" OnClick="() => RestoreAsync(package)">Restore</FluentButton>
+                                }
+                                else
+                                {
+                                    <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.Delete())" Disabled="@(_busy || _restarting)"
+                                                  OnClick="() => RemoveAsync(package)" aria-label="@($"Remove {package.Name}")">Remove</FluentButton>
+                                }
+                            </div>
+                        </div>
+                    </section>
+                }
+            </div>
+        }
     }
 </div>
 
 @code {
+    private const long MaxUpload = 64L * 1024 * 1024;
+
+    private enum ConfirmKind { Disable, Remove }
+
     private IReadOnlyList<PluginInfo>? _plugins;
+    private PluginPackageList? _packages;
     private string? _confirming;
-    private string? _error;
-    private bool _busy;
+    private ConfirmKind _confirmKind;
+    private string? _error, _done, _restartMessage;
+    private bool _busy, _adding, _restarting;
+    private IBrowserFile? _file;
+    private readonly CancellationTokenSource _cts = new();
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -99,7 +225,8 @@
     {
         try
         {
-            _plugins = await Api.GetPluginsAsync();
+            _plugins = await Api.GetPluginsAsync(_cts.Token);
+            _packages = await Api.GetPluginPackagesAsync(_cts.Token);
             _error = null;
         }
         catch (HttpRequestException ex)
@@ -107,6 +234,29 @@
             _error = $"Can't reach SolPnl: {ex.Message}";
         }
     }
+
+    private PluginPackageInfo? PackageOf(PluginInfo plugin) =>
+        _packages?.Packages.FirstOrDefault(p => p.PluginIds.Contains(plugin.Id));
+
+    /// <summary>Removed, failed, or loaded but providing no plugin (e.g. a duplicate of one already running).</summary>
+    private IReadOnlyList<PluginPackageInfo> NotRunning =>
+        _packages?.Packages.Where(p => p.PluginIds.Count == 0).ToList() ?? [];
+
+    private List<string> OtherPlugins(PluginPackageInfo package, PluginInfo plugin) =>
+        _plugins?.Where(p => p.Id != plugin.Id && package.PluginIds.Contains(p.Id)).Select(p => p.DisplayName).ToList() ?? [];
+
+    private static string SourceLabel(PluginPackageInfo package)
+    {
+        var source = package.Source == PluginPackageSources.BuiltIn ? "Built in" : "Added";
+        return package.Version is { } version ? $"{source} · version {version}" : source;
+    }
+
+    private static string NotRunningReason(PluginPackageInfo package) => package.State switch
+    {
+        PluginPackageStates.Removed => "Removed. Restore it to use it again.",
+        PluginPackageStates.Failed => $"Couldn't be loaded: {package.Error}",
+        _ => "Loaded, but every plugin in it is already provided by another package.",
+    };
 
     private static string KindLabel(string kind) => kind switch
     {
@@ -116,12 +266,18 @@
         _ => "Plugin",
     };
 
+    private void Confirm(string pluginId, ConfirmKind kind)
+    {
+        _confirming = pluginId;
+        _confirmKind = kind;
+    }
+
     private Task DisableAsync(PluginInfo plugin)
     {
         // Ask first if it will stop devices; otherwise just do it.
         if (plugin.DeviceCount > 0)
         {
-            _confirming = plugin.Id;
+            Confirm(plugin.Id, ConfirmKind.Disable);
             return Task.CompletedTask;
         }
         return SetEnabledAsync(plugin, false);
@@ -145,5 +301,77 @@
         {
             _busy = false;
         }
+    }
+
+    private void FileChosen(InputFileChangeEventArgs e) => _file = e.File;
+
+    private async Task UploadAsync()
+    {
+        if (_file is null) return;
+        if (_file.Size > MaxUpload)
+        {
+            _error = $"{_file.Name} is larger than {MaxUpload / (1024 * 1024)} MB, the most a plugin package can be.";
+            return;
+        }
+        await RunAsync(async () =>
+        {
+            await using var stream = _file.OpenReadStream(MaxUpload, _cts.Token);
+            return await Api.AddPluginPackageAsync(stream, _cts.Token);
+        });
+        _file = null;
+    }
+
+    private Task RemoveAsync(PluginPackageInfo package) => RunAsync(() => Api.RemovePluginPackageAsync(package.Id, _cts.Token));
+
+    private Task RestoreAsync(PluginPackageInfo package) => RunAsync(() => Api.RestorePluginPackageAsync(package.Id, _cts.Token));
+
+    /// <summary>Adds, removes or restores a package, then waits for SolPnl to restart and shows the new list.</summary>
+    private async Task RunAsync(Func<Task<ApiResult<PluginActionResult>>> action)
+    {
+        _busy = true;
+        _done = null;
+        try
+        {
+            var result = await action();
+            if (!result.Ok)
+            {
+                _error = result.Error;
+                return;
+            }
+
+            _error = null;
+            _confirming = null;
+            _adding = false;
+            _restarting = true;
+            _restartMessage = result.Value?.Message;
+            StateHasChanged();
+
+            var deadline = DateTimeOffset.UtcNow.AddMinutes(5);
+            await Task.Delay(TimeSpan.FromSeconds(3), _cts.Token); // let it stop first
+            while (DateTimeOffset.UtcNow < deadline && !await Api.IsUpAsync(_cts.Token))
+                await Task.Delay(TimeSpan.FromSeconds(2), _cts.Token);
+
+            _restarting = false;
+            _done = "SolPnl restarted with the change.";
+            await LoadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Can't reach SolPnl: {ex.Message}";
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _busy = false;
+            _restarting = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
     }
 }

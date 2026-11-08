@@ -186,6 +186,32 @@ public sealed class SolPnlApi(HttpClient http)
         return await ReadResultAsync<PluginActionResult>(response, ct);
     }
 
+    public async Task<PluginPackageList> GetPluginPackagesAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<PluginPackageList>("api/v1/plugin-packages", Json, ct) ?? new PluginPackageList(false, []);
+
+    /// <summary>Adds a plugin package (a zip). SolPnl restarts to load it.</summary>
+    public async Task<ApiResult<PluginActionResult>> AddPluginPackageAsync(Stream package, CancellationToken ct = default)
+    {
+        using var content = new StreamContent(package);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/zip");
+        using var response = await http.PostAsync("api/v1/plugin-packages", content, ct);
+        return await ReadResultAsync<PluginActionResult>(response, ct);
+    }
+
+    /// <summary>Removes a plugin package. SolPnl restarts without it.</summary>
+    public async Task<ApiResult<PluginActionResult>> RemovePluginPackageAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync($"api/v1/plugin-packages/{Uri.EscapeDataString(id)}", ct);
+        return await ReadResultAsync<PluginActionResult>(response, ct);
+    }
+
+    /// <summary>Brings back a removed built-in plugin package. SolPnl restarts to load it.</summary>
+    public async Task<ApiResult<PluginActionResult>> RestorePluginPackageAsync(string id, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync($"api/v1/plugin-packages/{Uri.EscapeDataString(id)}/restore", content: null, ct);
+        return await ReadResultAsync<PluginActionResult>(response, ct);
+    }
+
     /// <summary>True when the server answers (used to wait out a restart).</summary>
     public async Task<bool> IsUpAsync(CancellationToken ct = default)
     {

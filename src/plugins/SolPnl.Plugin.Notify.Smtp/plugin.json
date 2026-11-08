@@ -1,0 +1,5 @@
+{
+  "id": "solpnl.email-smtp",
+  "name": "Email (SMTP)",
+  "assembly": "SolPnl.Plugin.Notify.Smtp.dll"
+}

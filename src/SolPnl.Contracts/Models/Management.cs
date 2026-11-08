@@ -45,6 +45,37 @@ public sealed record SavePluginSettingsRequest(Dictionary<string, string?> Value
 
 public sealed record PluginActionResult(bool Ok, string Message);
 
+public static class PluginPackageSources
+{
+    /// <summary>Ships with SolPnl (updated with it); can be removed and restored.</summary>
+    public const string BuiltIn = "builtIn";
+    /// <summary>Added on this machine (uploaded, or copied into the plugins folder).</summary>
+    public const string Added = "added";
+}
+
+public static class PluginPackageStates
+{
+    public const string Loaded = "loaded";
+    /// <summary>A built-in package that was removed; it can be restored.</summary>
+    public const string Removed = "removed";
+    /// <summary>Couldn't be loaded; <see cref="PluginPackageInfo.Error"/> says why.</summary>
+    public const string Failed = "failed";
+}
+
+/// <summary>An installed plugin package: one or more plugins (<see cref="PluginIds"/>) shipped together.</summary>
+public sealed record PluginPackageInfo(
+    string Id,
+    string Name,
+    string? Description,
+    string? Version,
+    string Source,
+    string State,
+    string? Error,
+    IReadOnlyList<string> PluginIds);
+
+/// <param name="UploadAllowed">Whether packages can be uploaded (Plugins:AllowUpload in appsettings.Local.json).</param>
+public sealed record PluginPackageList(bool UploadAllowed, IReadOnlyList<PluginPackageInfo> Packages);
+
 /// <summary>
 /// Which events send notifications (through every enabled, configured notification plugin).
 /// <see cref="GridVoltageLow"/>/<see cref="GridVoltageHigh"/>: per-leg limits in volts; null = automatic
