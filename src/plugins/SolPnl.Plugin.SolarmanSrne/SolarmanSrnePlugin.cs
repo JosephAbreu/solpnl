@@ -1,6 +1,6 @@
 using SolPnl.Contracts.Models;
 using SolPnl.Contracts.Plugins;
-using SolPnl.Plugin.SolarmanSrne.Protocol;
+using SolPnl.Solarman;
 
 namespace SolPnl.Plugin.SolarmanSrne;
 
