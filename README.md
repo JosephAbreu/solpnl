@@ -20,6 +20,8 @@ and alerting on the server, and depends on outside services only when a plugin y
 | `src/plugins/SolPnl.Plugin.SolarmanSrne` | Solarman V5 logger + SRNE-family inverters (e.g. Sungoldpower 10kW split phase) |
 | `src/plugins/SolPnl.Plugin.SolarmanDeye` | Solarman V5 logger + Deye single-phase and US split-phase hybrid inverters and rebrands such as Sunsynk (register map not yet verified on a live unit) |
 | `src/plugins/SolPnl.Solarman` | Solarman V5 logger client and Modbus RTU framing, shared by the Solarman plugins |
+| `src/plugins/SolPnl.Plugin.SunSpec` | SunSpec inverters over Modbus TCP (e.g. Fronius, SMA, SolarEdge, KACO), with an optional SunSpec grid meter (not yet verified on a live unit) |
+| `src/plugins/SolPnl.Modbus` | Modbus TCP client shared by Modbus TCP plugins |
 | `src/plugins/SolPnl.Plugin.OpenMeteo` | Weather service plugin: conditions, forecasts, solar irradiance and place search (open-meteo.com) |
 | `src/plugins/SolPnl.Plugin.NwsAlerts` | Weather alert service plugin: official US watches and warnings (api.weather.gov) |
 | `src/plugins/SolPnl.Plugin.Simulator` | Simulated inverter for development (registered only in the Development environment) |

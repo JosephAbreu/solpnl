@@ -1,0 +1,5 @@
+{
+  "id": "solpnl.sunspec",
+  "name": "SunSpec Modbus TCP inverters",
+  "assembly": "SolPnl.Plugin.SunSpec.dll"
+}
