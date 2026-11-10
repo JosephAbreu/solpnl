@@ -32,6 +32,7 @@
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.SolarmanDeye\SolPnl.Plugin.SolarmanDeye.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.SunSpec\SolPnl.Plugin.SunSpec.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.HuaweiSun2000\SolPnl.Plugin.HuaweiSun2000.csproj" />
+    <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Luxpower\SolPnl.Plugin.Luxpower.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Sungrow\SolPnl.Plugin.Sungrow.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.VictronGx\SolPnl.Plugin.VictronGx.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Simulator\SolPnl.Plugin.Simulator.csproj" />

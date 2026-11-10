@@ -1,0 +1,5 @@
+{
+  "id": "solpnl.luxpower",
+  "name": "EG4 / Luxpower inverters",
+  "assembly": "SolPnl.Plugin.Luxpower.dll"
+}
