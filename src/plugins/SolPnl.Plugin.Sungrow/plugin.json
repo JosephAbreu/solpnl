@@ -1,0 +1,5 @@
+{
+  "id": "solpnl.sungrow",
+  "name": "Sungrow inverters (Modbus TCP)",
+  "assembly": "SolPnl.Plugin.Sungrow.dll"
+}

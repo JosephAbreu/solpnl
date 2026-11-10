@@ -31,6 +31,7 @@
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.SolarmanSrne\SolPnl.Plugin.SolarmanSrne.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.SolarmanDeye\SolPnl.Plugin.SolarmanDeye.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.SunSpec\SolPnl.Plugin.SunSpec.csproj" />
+    <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Sungrow\SolPnl.Plugin.Sungrow.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.VictronGx\SolPnl.Plugin.VictronGx.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Simulator\SolPnl.Plugin.Simulator.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.OpenMeteo\SolPnl.Plugin.OpenMeteo.csproj" />
