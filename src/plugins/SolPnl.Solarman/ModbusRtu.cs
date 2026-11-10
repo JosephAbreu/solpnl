@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 
-namespace SolPnl.Plugin.SolarmanSrne.Protocol;
+namespace SolPnl.Solarman;
 
 /// <summary>Minimal Modbus RTU framing for register reads (functions 0x03 / 0x04).</summary>
 public static class ModbusRtu
