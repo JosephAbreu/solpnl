@@ -19,6 +19,7 @@
     <Project Path="src/plugins/SolPnl.Plugin.HuaweiSun2000/SolPnl.Plugin.HuaweiSun2000.csproj" />
     <Project Path="src/plugins/SolPnl.Plugin.Luxpower/SolPnl.Plugin.Luxpower.csproj" />
     <Project Path="src/plugins/SolPnl.Plugin.Fronius/SolPnl.Plugin.Fronius.csproj" />
+    <Project Path="src/plugins/SolPnl.Plugin.Enphase/SolPnl.Plugin.Enphase.csproj" />
     <Project Path="src/plugins/SolPnl.Plugin.Sungrow/SolPnl.Plugin.Sungrow.csproj" />
     <Project Path="src/plugins/SolPnl.Plugin.VictronGx/SolPnl.Plugin.VictronGx.csproj" />
   </Folder>
@@ -31,6 +32,7 @@
     <Project Path="tests/SolPnl.Plugin.HuaweiSun2000.Tests/SolPnl.Plugin.HuaweiSun2000.Tests.csproj" />
     <Project Path="tests/SolPnl.Plugin.Luxpower.Tests/SolPnl.Plugin.Luxpower.Tests.csproj" />
     <Project Path="tests/SolPnl.Plugin.Fronius.Tests/SolPnl.Plugin.Fronius.Tests.csproj" />
+    <Project Path="tests/SolPnl.Plugin.Enphase.Tests/SolPnl.Plugin.Enphase.Tests.csproj" />
     <Project Path="tests/SolPnl.Plugin.Sungrow.Tests/SolPnl.Plugin.Sungrow.Tests.csproj" />
     <Project Path="tests/SolPnl.Plugin.VictronGx.Tests/SolPnl.Plugin.VictronGx.Tests.csproj" />
     <Project Path="tests/SolPnl.Plugin.Weather.Tests/SolPnl.Plugin.Weather.Tests.csproj" />

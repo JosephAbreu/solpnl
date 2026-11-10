@@ -1,0 +1,5 @@
+{
+  "id": "solpnl.enphase",
+  "name": "Enphase IQ Gateway",
+  "assembly": "SolPnl.Plugin.Enphase.dll"
+}
