@@ -34,6 +34,7 @@
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.HuaweiSun2000\SolPnl.Plugin.HuaweiSun2000.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Luxpower\SolPnl.Plugin.Luxpower.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Fronius\SolPnl.Plugin.Fronius.csproj" />
+    <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Enphase\SolPnl.Plugin.Enphase.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Sungrow\SolPnl.Plugin.Sungrow.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.VictronGx\SolPnl.Plugin.VictronGx.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Simulator\SolPnl.Plugin.Simulator.csproj" />
