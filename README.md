@@ -8,6 +8,29 @@ A self-hosted web application for solar equipment monitoring
 SolPnl runs entirely on your own hardware (e.g. a Raspberry Pi). It reads equipment locally, keeps all logic
 and alerting on the server, and depends on outside services only when a plugin you enable requires them.
 
+## Supported equipment
+SolPnl reads each kind of equipment through a plugin. Only some have been checked against real hardware so far;
+the rest follow published or open-source protocol definitions and pass SolPnl's tests, but may still have wrong
+values (most often a reading's sign, e.g. exporting shown as importing) until someone runs them on a live system.
+
+| Equipment | Connects through | Status | Notes |
+|---|---|---|---|
+| SRNE-family split-phase hybrids (e.g. Sungoldpower SPH10048P) | Solarman WiFi stick logger | ✅ Tested | Checked on a SPH10048P without a battery. Battery readings not yet tested |
+| Deye / Sunsynk single and US split-phase hybrids (SUN-…-SG0xLP1) | Solarman WiFi stick logger | ⬜ Not yet tested | Grid and battery signs unconfirmed. Three-phase models not supported |
+| SunSpec inverters (Fronius, SMA, SolarEdge, KACO, …) and SunSpec meters | Modbus TCP (turn it on in the inverter) | ⬜ Not yet tested | Meter direction is a setting, since vendors differ |
+| Fronius (Symo, Primo, Galvo, Eco, GEN24, Tauro) with Smart Meter and battery | Fronius Solar API (on by default) | ⬜ Not yet tested | Battery sign unconfirmed |
+| Victron (MultiPlus/Quattro, SmartSolar/BlueSolar, battery) | GX device (Cerbo GX, …) over Modbus TCP | ⬜ Not yet tested | Registers from Victron's own definitions |
+| Sungrow SG string inverters and SH hybrids | WiNet-S dongle or LAN port, Modbus TCP | ⬜ Not yet tested | No fault codes yet; inputs beyond PV 2 not read |
+| Huawei SUN2000 with power meter and LUNA2000 battery | SDongle or inverter WiFi, Modbus TCP | ⬜ Not yet tested | Meter sign unconfirmed |
+| EG4 / Luxpower hybrids (18kPV, 12kPV, 6000XP, …) | WiFi dongle, local port 8000 | ⬜ Not yet tested | Message format matches lxp-bridge's byte for byte |
+| Enphase IQ Gateway (Envoy) with CT meters and IQ Batteries | Gateway local API | ⬜ Not yet tested | Firmware 7+ needs an access token from Enphase, renewed yearly. Battery sign unconfirmed |
+
+✅ Tested: checked against a live unit. ⬜ Not yet tested: built from protocol documentation and tested only against
+simulated devices.
+
+Running SolPnl on equipment marked "not yet tested"? Please [open an issue](https://github.com/JosephAbreu/solpnl/issues)
+saying what you have and whether the values match the inverter's own display or app. That's how an entry becomes ✅.
+
 ## Layout
 
 | Path | Purpose |
@@ -18,15 +41,15 @@ and alerting on the server, and depends on outside services only when a plugin y
 | `src/SolPnl.Ui` | Shared UI (Fluent UI Blazor): layout, pages, components and SVG charts; reusable by a future MAUI Blazor Hybrid app |
 | `src/SolPnl.Web` | Blazor WebAssembly PWA host for `SolPnl.Ui` |
 | `src/plugins/SolPnl.Plugin.SolarmanSrne` | Solarman V5 logger + SRNE-family inverters (e.g. Sungoldpower 10kW split phase) |
-| `src/plugins/SolPnl.Plugin.SolarmanDeye` | Solarman V5 logger + Deye single-phase and US split-phase hybrid inverters and rebrands such as Sunsynk (register map not yet verified on a live unit) |
+| `src/plugins/SolPnl.Plugin.SolarmanDeye` | Solarman V5 logger + Deye single-phase and US split-phase hybrid inverters and rebrands such as Sunsynk |
 | `src/plugins/SolPnl.Solarman` | Solarman V5 logger client and Modbus RTU framing, shared by the Solarman plugins |
-| `src/plugins/SolPnl.Plugin.SunSpec` | SunSpec inverters over Modbus TCP (e.g. Fronius, SMA, SolarEdge, KACO), with an optional SunSpec grid meter (not yet verified on a live unit) |
-| `src/plugins/SolPnl.Plugin.HuaweiSun2000` | Huawei SUN2000 inverters with optional power meter and LUNA2000 battery over Modbus TCP (SDongle or inverter WiFi; not yet verified on a live unit) |
-| `src/plugins/SolPnl.Plugin.Luxpower` | EG4 / Luxpower hybrid inverters through their WiFi dongle's local port (not yet verified on a live unit) |
-| `src/plugins/SolPnl.Plugin.Fronius` | Fronius inverters (Symo, Primo, GEN24, ...) with Smart Meter and battery through the Fronius Solar API (JSON over HTTP; not yet verified on a live unit) |
-| `src/plugins/SolPnl.Plugin.Enphase` | Enphase IQ Gateway (Envoy) with CT meters and IQ Batteries through its local API (firmware 7+ needs a yearly access token; not yet verified on a live unit) |
-| `src/plugins/SolPnl.Plugin.Sungrow` | Sungrow SG string inverters and SH hybrids over Modbus TCP (WiNet-S or LAN port; not yet verified on a live unit) |
-| `src/plugins/SolPnl.Plugin.VictronGx` | Victron systems (MultiPlus/Quattro, solar chargers, battery) through a GX device over Modbus TCP (not yet verified on a live unit) |
+| `src/plugins/SolPnl.Plugin.SunSpec` | SunSpec inverters over Modbus TCP (e.g. Fronius, SMA, SolarEdge, KACO), with an optional SunSpec grid meter |
+| `src/plugins/SolPnl.Plugin.HuaweiSun2000` | Huawei SUN2000 inverters with optional power meter and LUNA2000 battery over Modbus TCP (SDongle or inverter WiFi) |
+| `src/plugins/SolPnl.Plugin.Luxpower` | EG4 / Luxpower hybrid inverters through their WiFi dongle's local port |
+| `src/plugins/SolPnl.Plugin.Fronius` | Fronius inverters (Symo, Primo, GEN24, ...) with Smart Meter and battery through the Fronius Solar API (JSON over HTTP) |
+| `src/plugins/SolPnl.Plugin.Enphase` | Enphase IQ Gateway (Envoy) with CT meters and IQ Batteries through its local API (firmware 7+ needs a yearly access token) |
+| `src/plugins/SolPnl.Plugin.Sungrow` | Sungrow SG string inverters and SH hybrids over Modbus TCP (WiNet-S or LAN port) |
+| `src/plugins/SolPnl.Plugin.VictronGx` | Victron systems (MultiPlus/Quattro, solar chargers, battery) through a GX device over Modbus TCP |
 | `src/plugins/SolPnl.Modbus` | Modbus TCP client shared by Modbus TCP plugins |
 | `src/plugins/SolPnl.Plugin.OpenMeteo` | Weather service plugin: conditions, forecasts, solar irradiance and place search (open-meteo.com) |
 | `src/plugins/SolPnl.Plugin.NwsAlerts` | Weather alert service plugin: official US watches and warnings (api.weather.gov) |
