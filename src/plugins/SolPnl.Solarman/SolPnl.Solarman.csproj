@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Solarman V5 logger client and Modbus RTU framing, shared by the plugins that read inverters through a Solarman
+    WiFi stick logger. Not a plugin itself: each plugin package ships its own copy of SolPnl.Solarman.dll.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
