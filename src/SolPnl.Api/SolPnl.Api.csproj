@@ -29,6 +29,7 @@
   -->
   <ItemGroup>
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.SolarmanSrne\SolPnl.Plugin.SolarmanSrne.csproj" />
+    <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.SolarmanDeye\SolPnl.Plugin.SolarmanDeye.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.Simulator\SolPnl.Plugin.Simulator.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.OpenMeteo\SolPnl.Plugin.OpenMeteo.csproj" />
     <SolPnlPlugin Include="..\plugins\SolPnl.Plugin.NwsAlerts\SolPnl.Plugin.NwsAlerts.csproj" />

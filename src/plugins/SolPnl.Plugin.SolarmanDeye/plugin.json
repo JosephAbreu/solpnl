@@ -1,0 +1,5 @@
+{
+  "id": "solpnl.solarman-deye",
+  "name": "Solarman + Deye/Sunsynk inverters",
+  "assembly": "SolPnl.Plugin.SolarmanDeye.dll"
+}
