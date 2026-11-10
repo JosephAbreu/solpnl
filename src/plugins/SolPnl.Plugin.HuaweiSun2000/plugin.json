@@ -1,0 +1,5 @@
+{
+  "id": "solpnl.huawei-sun2000",
+  "name": "Huawei SUN2000 inverters (Modbus TCP)",
+  "assembly": "SolPnl.Plugin.HuaweiSun2000.dll"
+}
