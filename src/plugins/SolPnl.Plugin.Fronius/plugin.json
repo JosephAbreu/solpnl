@@ -1,0 +1,5 @@
+{
+  "id": "solpnl.fronius",
+  "name": "Fronius Solar API",
+  "assembly": "SolPnl.Plugin.Fronius.dll"
+}
