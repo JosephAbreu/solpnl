@@ -1,6 +1,6 @@
 ﻿using System.Globalization;
 using SolPnl.Plugin.SolarmanSrne;
-using SolPnl.Plugin.SolarmanSrne.Protocol;
+using SolPnl.Solarman;
 
 // SolPnl probe: verifies local Modbus access through a Solarman V5 stick logger and dumps raw registers.
 //

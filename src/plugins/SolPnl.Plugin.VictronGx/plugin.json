@@ -1,0 +1,5 @@
+{
+  "id": "solpnl.victron-gx",
+  "name": "Victron GX (Modbus TCP)",
+  "assembly": "SolPnl.Plugin.VictronGx.dll"
+}

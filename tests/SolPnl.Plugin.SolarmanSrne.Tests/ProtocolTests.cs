@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
-using SolPnl.Plugin.SolarmanSrne.Protocol;
+using SolPnl.Solarman;
 
 namespace SolPnl.Plugin.SolarmanSrne.Tests;
 

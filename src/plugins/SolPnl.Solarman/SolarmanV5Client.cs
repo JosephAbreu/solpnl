@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Net.Sockets;
 
-namespace SolPnl.Plugin.SolarmanSrne.Protocol;
+namespace SolPnl.Solarman;
 
 /// <summary>
 /// Talks to a Solarman (IGEN) WiFi stick logger such as the LSW-5 on its local TCP port (default 8899)

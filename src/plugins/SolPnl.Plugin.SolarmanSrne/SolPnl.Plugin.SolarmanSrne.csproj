@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\SolPnl.Contracts\SolPnl.Contracts.csproj" />
+    <ProjectReference Include="..\SolPnl.Solarman\SolPnl.Solarman.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
