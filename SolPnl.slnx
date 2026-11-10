@@ -14,12 +14,14 @@
     <Project Path="src/plugins/SolPnl.Plugin.Simulator/SolPnl.Plugin.Simulator.csproj" />
     <Project Path="src/plugins/SolPnl.Plugin.SolarmanSrne/SolPnl.Plugin.SolarmanSrne.csproj" />
     <Project Path="src/plugins/SolPnl.Plugin.SunSpec/SolPnl.Plugin.SunSpec.csproj" />
+    <Project Path="src/plugins/SolPnl.Plugin.VictronGx/SolPnl.Plugin.VictronGx.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SolPnl.Core.Tests/SolPnl.Core.Tests.csproj" />
     <Project Path="tests/SolPnl.Plugin.Notify.Smtp.Tests/SolPnl.Plugin.Notify.Smtp.Tests.csproj" />
     <Project Path="tests/SolPnl.Plugin.SolarmanSrne.Tests/SolPnl.Plugin.SolarmanSrne.Tests.csproj" />
     <Project Path="tests/SolPnl.Plugin.SunSpec.Tests/SolPnl.Plugin.SunSpec.Tests.csproj" />
+    <Project Path="tests/SolPnl.Plugin.VictronGx.Tests/SolPnl.Plugin.VictronGx.Tests.csproj" />
     <Project Path="tests/SolPnl.Plugin.Weather.Tests/SolPnl.Plugin.Weather.Tests.csproj" />
     <Project Path="tests/SolPnl.Ui.Tests/SolPnl.Ui.Tests.csproj" />
   </Folder>

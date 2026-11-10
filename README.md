@@ -19,6 +19,7 @@ and alerting on the server, and depends on outside services only when a plugin y
 | `src/SolPnl.Web` | Blazor WebAssembly PWA host for `SolPnl.Ui` |
 | `src/plugins/SolPnl.Plugin.SolarmanSrne` | Solarman V5 logger + SRNE-family inverters (e.g. Sungoldpower 10kW split phase) |
 | `src/plugins/SolPnl.Plugin.SunSpec` | SunSpec inverters over Modbus TCP (e.g. Fronius, SMA, SolarEdge, KACO), with an optional SunSpec grid meter (not yet verified on a live unit) |
+| `src/plugins/SolPnl.Plugin.VictronGx` | Victron systems (MultiPlus/Quattro, solar chargers, battery) through a GX device over Modbus TCP (not yet verified on a live unit) |
 | `src/plugins/SolPnl.Modbus` | Modbus TCP client shared by Modbus TCP plugins |
 | `src/plugins/SolPnl.Plugin.OpenMeteo` | Weather service plugin: conditions, forecasts, solar irradiance and place search (open-meteo.com) |
 | `src/plugins/SolPnl.Plugin.NwsAlerts` | Weather alert service plugin: official US watches and warnings (api.weather.gov) |
