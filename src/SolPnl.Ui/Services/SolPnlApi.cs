@@ -254,6 +254,20 @@ public sealed class SolPnlApi(HttpClient http)
         return await ReadResultAsync<ConfiguredDevice>(response, ct);
     }
 
+    public async Task<ApiResult<ConfiguredDevice>> UpdateDeviceAsync(int id, UpdateDeviceRequest request, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync($"api/v1/config/devices/{id}", request, Json, ct);
+        return await ReadResultAsync<ConfiguredDevice>(response, ct);
+    }
+
+    /// <summary>Tests new settings for a configured device; secret settings left null use the saved value.</summary>
+    public async Task<DeviceTestResult> TestConfiguredDeviceAsync(int id, UpdateDeviceRequest request, CancellationToken ct = default)
+    {
+        using var response = await http.PostAsJsonAsync($"api/v1/config/devices/{id}/test", request, Json, ct);
+        var result = await ReadResultAsync<DeviceTestResult>(response, ct);
+        return result.Value ?? new DeviceTestResult(false, result.Error ?? "The test failed.");
+    }
+
     public async Task<ApiResult<bool>> RemoveDeviceAsync(int id, bool deleteHistory, CancellationToken ct = default)
     {
         using var response = await http.DeleteAsync($"api/v1/config/devices/{id}?deleteHistory={(deleteHistory ? "true" : "false")}", ct);

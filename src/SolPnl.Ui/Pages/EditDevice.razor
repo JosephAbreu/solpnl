@@ -1,0 +1,179 @@
+@page "/devices/{DeviceId}/edit"
+@inject SolPnlApi Api
+@inject NavigationManager Nav
+
+<PageTitle>Edit @Title · SolPnl</PageTitle>
+
+<div class="page">
+    <PageHeader Title="@($"Edit {Title}")" Subtitle="Change the device's name or connection settings, e.g. after a network change"
+                Icon="@(new Icons.Regular.Size24.Edit())"
+                Breadcrumbs="@([("Home", ""), ("Devices", "devices"), (Title, DevicePath), ("Edit", null)])" />
+
+    @if (_loadError is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Can't reach the SolPnl service">@_loadError</FluentMessageBar>
+    }
+    else if (!_loaded)
+    {
+        <FluentSpinner />
+    }
+    else if (_config is null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Info" Title="Not a configured device">
+            Only configured devices can be edited. <a href="devices">Back to devices</a>
+        </FluentMessageBar>
+    }
+    else if (_plugin is null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Warning" Title="Plugin not installed">
+            This device uses the '@_config.PluginId' plugin, which isn't installed, so its settings can't be edited.
+        </FluentMessageBar>
+    }
+    else
+    {
+        <form class="panel form" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+            <section>
+                <h2>Details</h2>
+                <FluentTextInput @bind-Value="_name" Label="Name" Required="true" Placeholder="Inverter" Width="100%" MaxLength="100" />
+                <p class="hint">@_plugin.DisplayName · device ID @_config.DeviceId. The device ID and its history stay the same when you change these settings.</p>
+
+                <div class="fields">
+                    @foreach (var field in _plugin.Settings)
+                    {
+                        var secret = field.Kind == SettingKind.Secret;
+                        <div class="field">
+                            <FluentTextInput Value="@Get(field.Key)" ValueChanged="@(v => Set(field.Key, v))" Label="@field.Label"
+                                             Required="@(field.Required && !secret)"
+                                             Placeholder="@(secret ? "Saved; leave empty to keep" : field.Placeholder ?? field.Default)"
+                                             TextInputType="@(secret ? TextInputType.Password : TextInputType.Text)"
+                                             InputMode="@(field.Kind == SettingKind.Number ? TextInputMode.Numeric : TextInputMode.Text)"
+                                             AutoComplete="off" Width="100%" />
+                            @if (!string.IsNullOrEmpty(field.Help))
+                            {
+                                <p class="hint">@field.Help</p>
+                            }
+                        </div>
+                    }
+                </div>
+            </section>
+
+            @if (_test is { } test)
+            {
+                <FluentMessageBar Intent="@(test.Ok ? MessageBarIntent.Success : MessageBarIntent.Error)"
+                                  Title="@(test.Ok ? "Device found" : "Couldn't reach the device")">@test.Message</FluentMessageBar>
+            }
+            @if (_error is not null)
+            {
+                <FluentMessageBar Intent="MessageBarIntent.Error" Title="Couldn't save the device">@_error</FluentMessageBar>
+            }
+
+            <div class="actions">
+                <FluentButton Appearance="ButtonAppearance.Subtle" OnClick="@(() => Nav.NavigateTo(DevicePath))" Disabled="_busy">Cancel</FluentButton>
+                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="TestAsync" Disabled="_busy"
+                              IconStart="@(new Icons.Regular.Size20.PlugConnected())">Test connection</FluentButton>
+                <FluentButton Appearance="ButtonAppearance.Primary" Type="ButtonType.Submit" Disabled="_busy" Loading="_busy">Save</FluentButton>
+            </div>
+        </form>
+    }
+</div>
+
+@code {
+    [Parameter] public string DeviceId { get; set; } = "";
+
+    private ConfiguredDevice? _config;
+    private PluginInfo? _plugin;
+    private string? _name;
+    private readonly Dictionary<string, string?> _settings = new();
+    private DeviceTestResult? _test;
+    private string? _error, _loadError;
+    private bool _loaded, _busy;
+
+    private string Title => _config?.Name ?? DeviceId;
+    private string DevicePath => $"devices/{Uri.EscapeDataString(DeviceId)}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            var pluginsTask = Api.GetPluginsAsync();
+            var configsTask = Api.GetConfiguredDevicesAsync();
+            await Task.WhenAll(pluginsTask, configsTask);
+
+            _config = configsTask.Result.FirstOrDefault(c => c.DeviceId == DeviceId);
+            _plugin = _config is null ? null : pluginsTask.Result.FirstOrDefault(p => p.Id == _config.PluginId && p.Kind == PluginKinds.Device);
+            _name = _config?.Name;
+            _settings.Clear();
+            if (_config is not null)
+                foreach (var (key, value) in _config.Settings)
+                    _settings[key] = value; // secrets come back as null: shown empty, kept unless typed over
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadError = ex.Message;
+        }
+        _loaded = true;
+    }
+
+    private string? Get(string key) => _settings.GetValueOrDefault(key);
+
+    private void Set(string key, string? value)
+    {
+        _settings[key] = value;
+        _test = null;
+    }
+
+    private UpdateDeviceRequest Request()
+    {
+        var settings = new Dictionary<string, string?>(_settings);
+        // An empty secret box means "keep the saved value", which the server does for null.
+        foreach (var field in _plugin?.Settings ?? [])
+            if (field.Kind == SettingKind.Secret && string.IsNullOrEmpty(settings.GetValueOrDefault(field.Key)))
+                settings[field.Key] = null;
+        return new((_name ?? "").Trim(), settings);
+    }
+
+    private async Task TestAsync()
+    {
+        if (_config is null) return;
+        _busy = true;
+        _error = null;
+        _test = null;
+        try
+        {
+            _test = await Api.TestConfiguredDeviceAsync(_config.Id, Request());
+        }
+        catch (HttpRequestException ex)
+        {
+            _test = new DeviceTestResult(false, $"Can't reach SolPnl: {ex.Message}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_config is null) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await Api.UpdateDeviceAsync(_config.Id, Request());
+            if (result.Value is not null)
+            {
+                Nav.NavigateTo(DevicePath);
+                return;
+            }
+            _error = result.Error;
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Can't reach SolPnl: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

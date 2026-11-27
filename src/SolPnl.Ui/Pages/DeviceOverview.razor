@@ -18,6 +18,8 @@
             }
             @if (_device is { IsConfigured: true })
             {
+                <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.Edit())"
+                              OnClick="@(() => Nav.NavigateTo($"devices/{Uri.EscapeDataString(DeviceId)}/edit"))">Edit</FluentButton>
                 <FluentButton Appearance="ButtonAppearance.Subtle" IconStart="@(new Icons.Regular.Size20.Delete())" OnClick="() => _confirmRemove = true">Remove</FluentButton>
             }
             else if (_device is not null)

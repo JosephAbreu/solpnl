@@ -10,6 +10,7 @@ using SolPnl.Core.Export;
 using SolPnl.Core.Devices;
 using SolPnl.Core.Grid;
 using SolPnl.Core.Notifications;
+using SolPnl.Core.Polling;
 using SolPnl.Core.Setup;
 using SolPnl.Core.Site;
 using SolPnl.Core.Storage;
@@ -127,6 +128,51 @@ public abstract class StorageTests : IAsyncLifetime
         await registry.AddAsync(new AddDeviceRequest("Garage", "fake", new() { ["id"] = "a" }));
         await store.SaveAsync(new DeviceInfo("fake-a", "Test", "Fake", null, null), [new Reading("fake-a", Metrics.PvPower, 2, "W", T0.AddSeconds(10))]);
         Assert.Equal(2, Assert.Single(await store.GetLatestAsync("fake-a")).Value);
+    }
+
+    [Fact]
+    public async Task Registry_UpdateChangesSettingsInPlace_KeepsKeyAndSecrets()
+    {
+        await Migrations().MigrateAsync();
+        var fake = new FakeDevicePluginType();
+        await using var registry = Registry(fake);
+        await registry.InitializeAsync(EmptyConfig());
+
+        var garage = await registry.AddAsync(new AddDeviceRequest("Garage", "fake", new() { ["id"] = "a", ["secret"] = "s3cret" }));
+        var shed = await registry.AddAsync(new AddDeviceRequest("Shed", "fake", new() { ["id"] = "b" }));
+        var before = (FakeDevice)registry.ActiveDevices.Single(d => d.ConfigId == garage.Id).Plugin;
+
+        // New "address" (the fake derives its key from "id", like plugins that key on the host): the stored key,
+        // config id and secret stay; the running instance is replaced.
+        var updated = await registry.UpdateAsync(garage.Id, new UpdateDeviceRequest(" Garage 2 ", new() { ["id"] = "c", ["secret"] = null }));
+        Assert.NotNull(updated);
+        Assert.Equal("Garage 2", updated.Name);
+        Assert.Equal("fake-a", updated.DeviceId);
+        Assert.Equal("c", updated.Settings["id"]);
+        Assert.True(before.Disposed);
+        var active = registry.ActiveDevices.Single(d => d.ConfigId == garage.Id);
+        Assert.Equal("fake-a", active.DeviceKey);
+        Assert.Equal("Garage 2", active.Name);
+
+        // Readings from the re-addressed plugin are stored under the original key.
+        var (info, readings) = PollingService.Rekey(active, await active.Plugin.GetDeviceInfoAsync(), await active.Plugin.ReadAsync());
+        Assert.Equal("fake-a", info.DeviceId);
+        Assert.All(readings, r => Assert.Equal("fake-a", r.DeviceId));
+
+        // The secret was kept (a test with a null secret uses it; the saved JSON still has it).
+        await using (var db = await _factory.CreateDbContextAsync())
+            Assert.Contains("s3cret", (await db.DeviceConfigs.SingleAsync(d => d.Id == garage.Id)).SettingsJson);
+        Assert.True((await registry.TestAsync(garage.Id, new Dictionary<string, string?> { ["id"] = "c" }))!.Ok);
+
+        // Pointing at another configured device, invalid settings, and unknown ids are rejected.
+        var clash = await Assert.ThrowsAsync<DeviceConfigurationException>(() =>
+            registry.UpdateAsync(garage.Id, new UpdateDeviceRequest("Garage", new() { ["id"] = "b" })));
+        Assert.Contains("Shed", clash.Message);
+        await Assert.ThrowsAsync<ArgumentException>(() => registry.UpdateAsync(garage.Id, new UpdateDeviceRequest("Garage", new())));
+        await Assert.ThrowsAsync<ArgumentException>(() => registry.UpdateAsync(garage.Id, new UpdateDeviceRequest(" ", new() { ["id"] = "c" })));
+        Assert.Null(await registry.UpdateAsync(12345, new UpdateDeviceRequest("X", new() { ["id"] = "x" })));
+        Assert.Null(await registry.TestAsync(12345, new Dictionary<string, string?>()));
+        Assert.Equal("Shed", (await registry.GetDevicesAsync()).Single(d => d.Id == shed.Id).Name);
     }
 
     [Fact]
