@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SolPnl.Contracts.Models;
 using SolPnl.Core.Devices;
 using SolPnl.Core.Storage;
 
@@ -58,8 +59,7 @@ public sealed class PollingService(
     {
         try
         {
-            var info = await device.Plugin.GetDeviceInfoAsync(ct);
-            var readings = await device.Plugin.ReadAsync(ct);
+            var (info, readings) = Rekey(device, await device.Plugin.GetDeviceInfoAsync(ct), await device.Plugin.ReadAsync(ct));
             await store.SaveAsync(info, readings, ct);
 
             if (_consecutiveFailures.Remove(device.ConfigId, out var failures))
@@ -78,5 +78,17 @@ public sealed class PollingService(
             else if (failures % 30 == 0)
                 logger.LogWarning("Polling device '{Device}' has failed {Failures} times in a row: {Message}", device.Name, failures, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Stores readings under the key the device was configured with. Several plugins build their key from the
+    /// address, so after the address is edited the plugin reports a different key; the history must not split.
+    /// </summary>
+    public static (DeviceInfo Info, IReadOnlyList<Reading> Readings) Rekey(ActiveDevice device, DeviceInfo info,
+        IReadOnlyList<Reading> readings)
+    {
+        if (info.DeviceId == device.DeviceKey && readings.All(r => r.DeviceId == device.DeviceKey)) return (info, readings);
+        return (info with { DeviceId = device.DeviceKey },
+            readings.Select(r => r.DeviceId == device.DeviceKey ? r : r with { DeviceId = device.DeviceKey }).ToList());
     }
 }

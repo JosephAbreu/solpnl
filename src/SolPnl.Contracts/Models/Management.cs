@@ -117,6 +117,13 @@ public sealed record ConfiguredDevice(
 
 public sealed record AddDeviceRequest(string Name, string PluginId, Dictionary<string, string?> Settings);
 
+/// <summary>
+/// New name and settings for a configured device, e.g. after its IP address changed. The plugin can't change and
+/// the device keeps its <see cref="ConfiguredDevice.DeviceId"/>, so its history continues. For secret settings,
+/// null (or missing) keeps the saved value.
+/// </summary>
+public sealed record UpdateDeviceRequest(string Name, Dictionary<string, string?> Settings);
+
 /// <summary>Result of trying a device's settings: connects and takes one reading.</summary>
 public sealed record DeviceTestResult(bool Ok, string Message, string? DeviceId = null, int ReadingCount = 0);
 

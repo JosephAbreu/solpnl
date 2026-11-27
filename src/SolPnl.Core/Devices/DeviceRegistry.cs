@@ -213,6 +213,75 @@ public sealed class DeviceRegistry : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Changes a configured device's name and settings (e.g. a new IP address after a network change) and restarts
+    /// polling with them. The device keeps its key, so readings carry on under the same history, even for plugins
+    /// that derive the key from the address. Secret settings left null keep their saved value. Returns null if
+    /// there is no such device; throws ArgumentException (invalid) or DeviceConfigurationException.
+    /// </summary>
+    public async Task<ConfiguredDevice?> UpdateAsync(int id, UpdateDeviceRequest request, CancellationToken cancellationToken = default)
+    {
+        var name = request.Name?.Trim() ?? "";
+        if (name.Length == 0) throw new ArgumentException("Name is required.");
+        if (name.Length > MaxNameLength) throw new ArgumentException($"Name must be at most {MaxNameLength} characters.");
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+            var entity = await db.DeviceConfigs.SingleOrDefaultAsync(d => d.Id == id, cancellationToken);
+            if (entity is null) return null;
+            if (!_types.TryGetValue(entity.PluginId, out var type))
+                throw new DeviceConfigurationException($"The plugin for this device ('{entity.PluginId}') isn't installed.");
+
+            var settings = Normalize(type, WithSavedSecrets(type, entity, request.Settings ?? []));
+            var plugin = type.Create(settings); // throws ArgumentException for invalid settings
+            string newKey;
+            try
+            {
+                newKey = (await plugin.GetDeviceInfoAsync(cancellationToken)).DeviceId;
+            }
+            finally
+            {
+                await DisposeAsync(plugin);
+            }
+
+            // The new settings may point at hardware that is already configured as another device.
+            if (newKey != entity.DeviceKey)
+            {
+                var other = await db.DeviceConfigs.AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.Id != id && d.DeviceKey == newKey, cancellationToken);
+                if (other is not null)
+                    throw new DeviceConfigurationException($"Those settings point at a device that is already configured as '{other.Name}'.");
+            }
+
+            entity.Name = name;
+            entity.SettingsJson = JsonSerializer.Serialize(settings);
+            await db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Device '{Name}' ({DeviceKey}) updated.", name, entity.DeviceKey);
+            await ReloadCoreAsync(cancellationToken);
+            return ToDto(entity);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    /// <summary>Like <see cref="TestAsync(string, IReadOnlyDictionary{string, string?}, CancellationToken)"/>, for a configured device: secret settings left null use the saved value.</summary>
+    public async Task<DeviceTestResult?> TestAsync(int id, IReadOnlyDictionary<string, string?> settings,
+        CancellationToken cancellationToken = default)
+    {
+        DeviceConfigEntity? entity;
+        await using (var db = await _dbFactory.CreateDbContextAsync(cancellationToken))
+            entity = await db.DeviceConfigs.AsNoTracking().SingleOrDefaultAsync(d => d.Id == id, cancellationToken);
+        if (entity is null) return null;
+        if (!_types.TryGetValue(entity.PluginId, out var type))
+            return new DeviceTestResult(false, $"No plugin '{entity.PluginId}' is installed.");
+        return await TestAsync(type.Id, WithSavedSecrets(type, entity, settings), cancellationToken);
+    }
+
     /// <summary>Stops polling a device and deletes its configuration; optionally its stored history too.</summary>
     public async Task<bool> RemoveAsync(int id, bool deleteHistory, CancellationToken cancellationToken = default)
     {
@@ -359,6 +428,18 @@ public sealed class DeviceRegistry : IAsyncDisposable
             var value = settings.TryGetValue(field.Key, out var v) ? v?.Trim() : null;
             if (!string.IsNullOrEmpty(value)) result[field.Key] = value;
         }
+        return result;
+    }
+
+    /// <summary>The given settings, with secret fields that are null or missing filled in from the saved settings.</summary>
+    private static Dictionary<string, string?> WithSavedSecrets(IDevicePluginType type, DeviceConfigEntity saved,
+        IReadOnlyDictionary<string, string?> settings)
+    {
+        var result = new Dictionary<string, string?>(settings, StringComparer.Ordinal);
+        var savedSettings = JsonSerializer.Deserialize<Dictionary<string, string?>>(saved.SettingsJson) ?? [];
+        foreach (var secret in type.Settings.Where(s => s.Kind == SettingKind.Secret))
+            if (result.GetValueOrDefault(secret.Key) is null && savedSettings.TryGetValue(secret.Key, out var value))
+                result[secret.Key] = value;
         return result;
     }
 

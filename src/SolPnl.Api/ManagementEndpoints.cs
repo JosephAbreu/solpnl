@@ -123,6 +123,30 @@ public static class ManagementEndpoints
             }
         }).WithName("AddDevice");
 
+        config.MapPut("/{id:int}", async (int id, UpdateDeviceRequest request, DeviceRegistry registry, CancellationToken ct) =>
+        {
+            try
+            {
+                return await registry.UpdateAsync(id, request, ct) is { } device
+                    ? Results.Ok(device)
+                    : Results.NotFound(new ApiError($"No configured device with id {id}."));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new ApiError(ex.Message));
+            }
+            catch (DeviceConfigurationException ex)
+            {
+                return Results.Conflict(new ApiError(ex.Message));
+            }
+        }).WithName("UpdateDevice");
+
+        config.MapPost("/{id:int}/test", async (int id, UpdateDeviceRequest request, DeviceRegistry registry, CancellationToken ct) =>
+                await registry.TestAsync(id, request.Settings ?? [], ct) is { } result
+                    ? Results.Ok(result)
+                    : Results.NotFound(new ApiError($"No configured device with id {id}.")))
+              .WithName("TestConfiguredDevice");
+
         config.MapDelete("/{id:int}", async (int id, bool? deleteHistory, DeviceRegistry registry, CancellationToken ct) =>
                 await registry.RemoveAsync(id, deleteHistory == true, ct)
                     ? Results.NoContent()

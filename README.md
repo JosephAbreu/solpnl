@@ -293,6 +293,8 @@ the database and never returned by the API: the card shows them as "Saved", with
 | `GET /api/v1/config/devices` | Configured devices (secret settings omitted) |
 | `POST /api/v1/config/devices` | Add a device: `{ name, pluginId, settings }` |
 | `POST /api/v1/config/devices/test` | Try a device's settings (connects and reads once, saves nothing) |
+| `PUT /api/v1/config/devices/{id}` | Edit a device in place: `{ name, settings }` (e.g. a new IP address). It keeps its device ID and history; secret settings left `null` keep their saved value |
+| `POST /api/v1/config/devices/{id}/test` | Try new settings for a configured device (saved secrets are used when left `null`) |
 | `DELETE /api/v1/config/devices/{id}[?deleteHistory=true]` | Remove a device |
 | `GET /api/v1/plugins` | Installed plugins (device and service), with settings schema and device counts |
 | `GET /api/v1/plugin-packages` | Plugin packages (built in or added; loaded, removed or failed) and whether upload is allowed |
